@@ -104,20 +104,19 @@ void * dclif_slave(void * index){
 
         if(err == 0) SHOW_INFO("Connection closed from clipboard %d.",index_);
         else SHOW_WARNING("Error reading from socket with clipboard %d: %s.",index_,strerror(errno));
-        
-        pthread_mutex_lock(&dclif->connections[index_].lock);
-
-        CLOSE(dclif->connections[index_].sock_fd);
-        dclif->connections[index_].sock_fd = 0;
-
-        pthread_mutex_lock(&dclif->lock);
-        dclif->n_connections--;
-        pthread_mutex_unlock(&dclif->lock);
-
-        pthread_mutex_unlock(&dclif->connections[index_].lock);
-
-        SHOW_INFO("Connected clipboards: %d/%d", dclif->n_connections,MAX_CLIPBOARDS);
     }
+    pthread_mutex_lock(&dclif->connections[index_].lock);
+
+    CLOSE(dclif->connections[index_].sock_fd);
+    dclif->connections[index_].sock_fd = 0;
+
+    pthread_mutex_lock(&dclif->lock);
+    dclif->n_connections--;
+    pthread_mutex_unlock(&dclif->lock);
+
+    pthread_mutex_unlock(&dclif->connections[index_].lock);
+
+    SHOW_INFO("Connected clipboards: %d/%d", dclif->n_connections,MAX_CLIPBOARDS);
     return NULL;
 }
 

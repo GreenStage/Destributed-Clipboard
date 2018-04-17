@@ -56,8 +56,6 @@ void * appif_slave(void * index){
     displacement = (unsigned long) sizeof(struct packet);
     ASSERT_RETV(appif != NULL,NULL,"Applications interface not initiliazed.");
 
-    err = sendData(sock,&p,sizeof(struct packet));
-
     while(appif->run) {
         if(err < 1) break;
         
