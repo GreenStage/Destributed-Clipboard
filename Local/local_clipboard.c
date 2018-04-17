@@ -85,14 +85,6 @@ int main(int argc, char *argv[]){
         }
     }
 
-    /*Ready Destributed Clipboard interface*/
-    if ( (err = dclif_init(sock) ) != 0){
-        return err;
-    }
-    /*Ready Applications interface*/
-    if ( (err = appif_init() ) != 0){
-        return err;
-    }
     clips_sock = socket(AF_INET, SOCK_STREAM, 0);
     apps_sock = socket(AF_UNIX, SOCK_STREAM, 0);
 
@@ -125,6 +117,16 @@ int main(int argc, char *argv[]){
         remove("CLIPBOARD_SOCKET");
         return ERR_BIND_SOCKET;
     }
+
+    /*Ready Destributed Clipboard interface*/
+    if ( (err = dclif_init(sock) ) != 0){
+        return err;
+    }
+    /*Ready Applications interface*/
+    if ( (err = appif_init() ) != 0){
+        return err;
+    }
+
     temp = malloc(sizeof(int));
     *temp = clips_sock;
     pthread_create(&clip_thread,NULL,dclif_listen,(void *)temp);
