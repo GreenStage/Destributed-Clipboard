@@ -204,7 +204,7 @@ void *dclif_listen(void * socket){
             SHOW_INFO("Connected clipboards: %d/%d", dclif->n_connections,MAX_CLIPBOARDS);
             pthread_create(&dclif->connections[*i].recv_thread,NULL,dclif_slave,(void *) i);
         }
-        pthread_mutex_lock(&dclif->lock);
+        pthread_mutex_unlock(&dclif->lock);
     }
     return NULL;
 }
@@ -252,7 +252,9 @@ int dclif_init(int socket){
 
         *index = 0;
         dclif->connections[0].sock_fd = socket;
+        dclif->n_connections++;
 
+        SHOW_INFO("Connected clipboards: %d/%d", dclif->n_connections,MAX_CLIPBOARDS);
         pthread_create(&dclif->connections[0].recv_thread,NULL,dclif_slave,(void *) index); 
     }
 
