@@ -101,13 +101,15 @@ void * dclif_slave(void * index){
         }
     }
     if(err < 1){
-
         if(err == 0) SHOW_INFO("Connection closed from clipboard %d.",index_);
         else SHOW_WARNING("Error reading from socket with clipboard %d: %s.",index_,strerror(errno));
     }
     pthread_mutex_lock(&dclif->connections[index_].lock);
 
+    SHOW_INFO("Closing socket %d.",dclif->connections[index_].sock_fd);
+    shutdown(dclif->connections[index_].sock_fd,SHUT_RDWR);
     CLOSE(dclif->connections[index_].sock_fd);
+    
     dclif->connections[index_].sock_fd = 0;
 
     pthread_mutex_lock(&dclif->lock);
@@ -275,6 +277,7 @@ void dclif_finalize(){
                 SHOW_ERROR("Error finishing thread \"clip_thread\": %d",err);
             }
             else SHOW_INFO("Slave thread %d finished",i);
+            pthread_mutex_destroy(&dclif->connections[i].lock);
         }
     }
 
@@ -285,14 +288,6 @@ void dclif_finalize(){
     }
     else SHOW_INFO("All remaining responses sent.");
 
-    for(i = 0; i < MAX_CLIPBOARDS; i++){
-        if(dclif->connections[i].sock_fd > 0){
-            SHOW_INFO("Closing socket %d.",dclif->connections[i].sock_fd);
-            shutdown(dclif->connections[i].sock_fd,SHUT_RDWR);
-            CLOSE(dclif->connections[i].sock_fd);
-        }
-        pthread_mutex_destroy(&dclif->connections[i].lock);
-    }
     pthread_mutex_destroy(&dclif->lock);
     mem_finish();
     free(dclif);
