@@ -75,7 +75,7 @@ void * dclif_slave(void * index){
         full_packet = NULL;
 
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-        if(recvData(sock,&p,sizeof(p)) != sizeof(p)){
+        if( (err = recvData(sock,&p,sizeof(p)) != sizeof(p)) ){
             continue;
         }
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -190,11 +190,10 @@ void *dclif_listen(void * socket){
             for(*i = 0; *i < MAX_CLIPBOARDS; (*i)++){
                 if(0 == pthread_mutex_trylock(&dclif->connections[*i].lock) &&
                     dclif->connections[*i].sock_fd <= 0){
-                    SHOW_WARNING("Could not lock to socket.");
-                    close(new_client_fd);
                     break;
                 }
             }
+            /*TODO ERROR HANDLING*/
             ASSERT_RETV(*i != MAX_CLIPBOARDS,NULL,"Zombie connection detected. exiting thread...");
             dclif->n_connections++;
             dclif->connections[*i].sock_fd = new_client_fd;

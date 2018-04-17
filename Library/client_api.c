@@ -213,9 +213,10 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
      if(recv_p.dataSize > count){
          uint8_t * trash = (uint8_t *) malloc(recv_p.dataSize - count);
 
-         if( recvData(clipboard_id,&buf,recv_p.dataSize - count) < 1){
+         if(recvData(clipboard_id,&trash,recv_p.dataSize - count) < 1){
             SHOW_ERROR("Error cleaning socket: %s",strerror(errno));
          }
+         free(trash);
      }
 
      return retval;

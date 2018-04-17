@@ -3,7 +3,6 @@
 #include "clipboard.h"
 #include <string.h>
 #include <unistd.h>
-#include <time.h>
 
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789"
@@ -18,25 +17,34 @@ void rand_str(char *dest, size_t length) {
 }
 #define STR_LEN 2000
 int main(){
-    char max_buff[255];
-    char command[50];
-    char data[STR_LEN + 1];
+    char command,region;
+    char command_data[1000];
     int clip;
-    int a = 0;
-    int i, s;
+    int exit_ = 0;
 
-    srand(time(NULL));
-    sprintf(data,"testetestestestesteste");
     if( (clip = clipboard_connect("../Local") )<1){
         printf("ups");
         return 1;
     }
-    while(1){
-        s = rand() % STR_LEN;
-        rand_str(data,s);
-        usleep(200000);
-        printf("Sending %s\n",data);
-        printf("Copy returned: %d\n",clipboard_copy(clip,a++ %10,data,strlen(data) +1));
+    while(!exit_){
+        if( 3 > scanf("%c %c %s",&command,&region,command_data)) continue;
 
+        switch(command){
+            case 'c':
+                printf("COPY: %d\n",clipboard_copy(clip,region,command_data,strlen(command_data) + 1));
+                break;
+            case 'p':
+                printf("PASTE: %d\n",clipboard_paste(clip,region,command_data,10000));
+                printf("DATA: %s",command_data);
+                break;
+            case 'w':
+                printf("WAIT: %d\n",clipboard_wait(clip,region,command_data,10000));
+                printf("DATA: %s",command_data);
+                break;     
+            case 'q':
+                exit_ = 1;   
+            default:
+                break;    
+        }
     }
 }

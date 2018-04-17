@@ -155,6 +155,5 @@ int main(int argc, char *argv[]){
     close(apps_sock);
     remove("CLIPBOARD_SOCKET");
     pthread_mutex_destroy(&print_lock);
-
     return 0;
 }
