@@ -74,6 +74,8 @@ int main(int argc, char *argv[]){
             return ERR_SOCKET;
         }
 
+        memset(&peer_addr,0,sizeof(peer_addr));
+        peer_addr.sin_family = AF_INET;
         peer_addr.sin_addr = *(struct in_addr *) hostinfo->h_addr;
         peer_addr.sin_port = htons(port);
 
@@ -93,6 +95,7 @@ int main(int argc, char *argv[]){
     }
     clips_sock = socket(AF_INET, SOCK_STREAM, 0);
     apps_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+
 
     if (apps_sock  == -1 ||clips_sock == -1){
         SHOW_ERROR("Can not create socket for listening: %s",strerror(errno));
