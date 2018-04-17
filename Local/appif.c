@@ -171,10 +171,12 @@ void *appif_listen(void * socket){
             SHOW_WARNING("Could not accept new connection: invalid socket.");
         }
         else if(appif->n_connections >= MAX_APPS){
+            shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: maximum number of connections reached.");
         }
         else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
+            shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
         }
@@ -232,6 +234,7 @@ void appif_finalize(){
     for(i = 0; i < MAX_APPS; i++){
         if(appif->connections[i].sock_fd > 0){
             SHOW_INFO("Closing socket %d.",appif->connections[i].sock_fd);
+            shutdown(appif->connections[i].sock_fd,SHUT_RDWR);
             CLOSE(appif->connections[i].sock_fd);
         }
     }

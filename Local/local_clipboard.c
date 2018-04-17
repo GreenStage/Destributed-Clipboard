@@ -72,7 +72,7 @@ int main(int argc, char *argv[]){
             SHOW_ERROR("Connected Mode: Could not create socket.");
             return ERR_SOCKET;
         }
-
+        
         memset(&peer_addr,0,sizeof(peer_addr));
         peer_addr.sin_family = AF_INET;
         peer_addr.sin_addr = *(struct in_addr *) hostinfo->h_addr;

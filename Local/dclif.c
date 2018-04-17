@@ -177,10 +177,12 @@ void *dclif_listen(void * socket){
             SHOW_WARNING("Could not accept new connection: invalid socket.");
         }
         else if(dclif->n_connections >= MAX_CLIPBOARDS){
+            shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: maximum number of connections reached.");
         }
         else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
+            shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
         }
@@ -287,7 +289,8 @@ void dclif_finalize(){
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         if(dclif->connections[i].sock_fd > 0){
             SHOW_INFO("Closing socket %d.",dclif->connections[i].sock_fd);
-             CLOSE(dclif->connections[i].sock_fd);
+            shutdown(dclif->connections[i].sock_fd,SHUT_RDWR);
+            CLOSE(dclif->connections[i].sock_fd);
         }
         pthread_mutex_destroy(&dclif->connections[i].lock);
     }
