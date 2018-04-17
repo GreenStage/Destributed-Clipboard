@@ -1,7 +1,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <errno.h>
 #include <pthread.h>
 
@@ -103,17 +102,17 @@ int main(int argc, char *argv[]){
     err = bind(clips_sock,(struct sockaddr *) &my_addr,sizeof(struct sockaddr_in));
     if(err == -1){
         SHOW_ERROR("Can not bind net socket: %s",strerror(errno));
-        close(clips_sock);
-        if(sock) close(sock);
+        CLOSE(clips_sock);
+        if(sock) CLOSE(sock);
         return ERR_BIND_SOCKET;
     }
 
     err = bind(apps_sock,(struct sockaddr *) &app_my_addr,sizeof(struct sockaddr_un));
     if(err == -1){
         SHOW_ERROR("Can not bind unix socket: %s",strerror(errno));
-        close(clips_sock);
-        close(apps_sock);
-        if(sock) close(sock);
+        CLOSE(clips_sock);
+        CLOSE(apps_sock);
+        if(sock) CLOSE(sock);
         remove("CLIPBOARD_SOCKET");
         return ERR_BIND_SOCKET;
     }
@@ -153,8 +152,8 @@ int main(int argc, char *argv[]){
 
     appif_finalize();
     dclif_finalize();
-    close(clips_sock);
-    close(apps_sock);
+    CLOSE(clips_sock);
+    CLOSE(apps_sock);
     remove("CLIPBOARD_SOCKET");
     pthread_mutex_destroy(&print_lock);
     return 0;

@@ -1,6 +1,7 @@
 
 #ifndef DCLIF_HEADER
 #define DCLIF_HEADER
+
 #define MAX_CLIPBOARDS 20
 #define MAX_APPS 20
 
@@ -27,5 +28,4 @@ void appif_finalize();
 
 int sendData(int sock,void * buf, int size);
 #define recvData(sock,buf,size) recv(sock,buf,size,MSG_WAITALL)
-
 #endif

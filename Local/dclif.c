@@ -2,7 +2,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 
@@ -108,7 +107,7 @@ void * dclif_slave(void * index){
         
         pthread_mutex_lock(&dclif->connections[index_].lock);
 
-        close(dclif->connections[index_].sock_fd);
+        CLOSE(dclif->connections[index_].sock_fd);
         dclif->connections[index_].sock_fd = 0;
 
         pthread_mutex_lock(&dclif->lock);
@@ -178,11 +177,11 @@ void *dclif_listen(void * socket){
             SHOW_WARNING("Could not accept new connection: invalid socket.");
         }
         else if(dclif->n_connections >= MAX_CLIPBOARDS){
-            close(new_client_fd);
+            CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: maximum number of connections reached.");
         }
         else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
-            close(new_client_fd);
+            CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
         }
         else{
@@ -243,7 +242,7 @@ int dclif_init(int socket){
 
         if(err < (int)sizeof(hello_p)){
             SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %d",err);
-            close(socket);
+            CLOSE(socket);
         }
         time_m_sync(hello_p.time);
 
@@ -288,7 +287,7 @@ void dclif_finalize(){
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         if(dclif->connections[i].sock_fd > 0){
             SHOW_INFO("Closing socket %d.",dclif->connections[i].sock_fd);
-            close(dclif->connections[i].sock_fd);
+             CLOSE(dclif->connections[i].sock_fd);
         }
         pthread_mutex_destroy(&dclif->connections[i].lock);
     }

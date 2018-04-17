@@ -2,7 +2,6 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include <pthread.h>
 #include <errno.h>
 
@@ -131,7 +130,7 @@ void * appif_slave(void * index){
         
         pthread_mutex_lock(&appif->lock);
         
-        close(appif->connections[index_].sock_fd);
+        CLOSE(appif->connections[index_].sock_fd);
         appif->connections[index_].sock_fd = 0;
         appif->n_connections--;
 
@@ -172,11 +171,11 @@ void *appif_listen(void * socket){
             SHOW_WARNING("Could not accept new connection: invalid socket.");
         }
         else if(appif->n_connections >= MAX_APPS){
-            close(new_client_fd);
+            CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: maximum number of connections reached.");
         }
         else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
-            close(new_client_fd);
+            CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
         }
         else{
@@ -233,7 +232,7 @@ void appif_finalize(){
     for(i = 0; i < MAX_APPS; i++){
         if(appif->connections[i].sock_fd > 0){
             SHOW_INFO("Closing socket %d.",appif->connections[i].sock_fd);
-            close(appif->connections[i].sock_fd);
+            CLOSE(appif->connections[i].sock_fd);
         }
     }
 

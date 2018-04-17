@@ -3,6 +3,7 @@
 #define COMMON_HEADER
 
 #include <stdint.h>
+#include <string.h>
 
 #define SHOW_ERRORS
 #define DEBUG 
@@ -77,6 +78,13 @@ do{\
         return;\
     }\
 } while(0)
+
+#define CLOSE(a)\
+do{\
+    if( close(a) == -1){\
+        SHOW_ERROR("Could not close socket %d: %s.",a,strerror(errno));\
+    }\
+}while(0)
 
 #define MALLOC_ENSURE(size)\
 
