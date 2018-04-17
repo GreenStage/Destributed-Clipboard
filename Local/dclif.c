@@ -165,7 +165,7 @@ void *dclif_listen(void * socket){
     ASSERT_RETV(sock > 0,NULL,"Invalid socket %d.",sock);
     ASSERT_RETV(listen(sock,MAX_CLIPBOARDS) == 0,NULL,"Can not listen on socket: %s.",strerror(errno));
 
-
+    SHOW_INFO("Started to listen to clipboards connection requests.");
     while(1){
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         new_client_fd = accept(sock, (struct sockaddr *) &new_client,&addr_size);
@@ -190,6 +190,8 @@ void *dclif_listen(void * socket){
             for(*i = 0; *i < MAX_CLIPBOARDS; (*i)++){
                 if(0 == pthread_mutex_trylock(&dclif->connections[*i].lock) &&
                     dclif->connections[*i].sock_fd <= 0){
+                    SHOW_WARNING("Could not lock to socket.");
+                    close(new_client_fd);
                     break;
                 }
             }
