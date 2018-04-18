@@ -47,6 +47,40 @@ int main(int argc, char *argv[]){
         return ERR_NO_PORT;
     }
 
+
+    clips_sock = socket(AF_INET, SOCK_STREAM, 0);
+    apps_sock = socket(AF_UNIX, SOCK_STREAM, 0);
+
+
+    if(apps_sock  == -1 ||clips_sock == -1){
+        SHOW_ERROR("Can not create socket for listening: %s",strerror(errno));
+        return ERR_SOCKET;
+    } 
+
+    my_addr.sin_family = AF_INET;
+    my_addr.sin_port = htons(myport);
+    my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    app_my_addr.sun_family = AF_UNIX;
+    sprintf(app_my_addr.sun_path,"CLIPBOARD_SOCKET");
+
+    err = bind(clips_sock,(struct sockaddr *) &my_addr,sizeof(struct sockaddr_in));
+    if(err == -1){
+        SHOW_ERROR("Can not bind net socket: %s",strerror(errno));
+        CLOSE(clips_sock);
+        if(sock) CLOSE(sock);
+        return ERR_BIND_SOCKET;
+    }
+
+    err = bind(apps_sock,(struct sockaddr *) &app_my_addr,sizeof(struct sockaddr_un));
+    if(err == -1){
+        SHOW_ERROR("Can not bind unix socket: %s",strerror(errno));
+        CLOSE(clips_sock);
+        CLOSE(apps_sock);
+        if(sock) CLOSE(sock);
+        remove("CLIPBOARD_SOCKET");
+        return ERR_BIND_SOCKET;
+    }
+
     if(argc > 1 && strncmp(argv[1],"-c",2) == 0){
         
         if(argc < 3){
@@ -82,39 +116,6 @@ int main(int argc, char *argv[]){
             SHOW_ERROR("Could not connect to %s",argv[2]);
             return ERR_CANT_CONNECT;
         }
-    }
-
-    clips_sock = socket(AF_INET, SOCK_STREAM, 0);
-    apps_sock = socket(AF_UNIX, SOCK_STREAM, 0);
-
-
-    if (apps_sock  == -1 ||clips_sock == -1){
-        SHOW_ERROR("Can not create socket for listening: %s",strerror(errno));
-        return ERR_SOCKET;
-    } 
-
-    my_addr.sin_family = AF_INET;
-    my_addr.sin_port = htons(myport);
-    my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    app_my_addr.sun_family = AF_UNIX;
-    sprintf(app_my_addr.sun_path,"CLIPBOARD_SOCKET");
-
-    err = bind(clips_sock,(struct sockaddr *) &my_addr,sizeof(struct sockaddr_in));
-    if(err == -1){
-        SHOW_ERROR("Can not bind net socket: %s",strerror(errno));
-        CLOSE(clips_sock);
-        if(sock) CLOSE(sock);
-        return ERR_BIND_SOCKET;
-    }
-
-    err = bind(apps_sock,(struct sockaddr *) &app_my_addr,sizeof(struct sockaddr_un));
-    if(err == -1){
-        SHOW_ERROR("Can not bind unix socket: %s",strerror(errno));
-        CLOSE(clips_sock);
-        CLOSE(apps_sock);
-        if(sock) CLOSE(sock);
-        remove("CLIPBOARD_SOCKET");
-        return ERR_BIND_SOCKET;
     }
 
     /*Ready Destributed Clipboard interface*/
