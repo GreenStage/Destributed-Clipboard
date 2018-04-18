@@ -16,7 +16,7 @@ void rand_str(char *dest, size_t length) {
     *dest = '\0';
 }
 #define STR_LEN 2000
-int main(int argc,char * agv[]){
+int main(int argc,char * argv[]){
     char command;
     char command_data[1000];
     int clip,region;
