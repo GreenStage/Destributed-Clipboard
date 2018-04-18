@@ -73,6 +73,7 @@ void * dclif_slave(void * index){
         memset(&p,0,sizeof(p));
         full_packet = NULL;
 
+        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         if( (err = recvData(sock,&p,sizeof(p)) != sizeof(p)) ){
             continue;
         }
@@ -80,11 +81,10 @@ void * dclif_slave(void * index){
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
         if(p.packetType == PACKET_GOODBYE){
-            CLOSE(sock);
             err = 0;
             break;
         }
-        
+
         full_packet = malloc(sizeof(struct packet) + p.dataSize);
 
         err = recvData(sock,full_packet + displacement,p.dataSize);

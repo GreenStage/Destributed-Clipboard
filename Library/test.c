@@ -17,9 +17,9 @@ void rand_str(char *dest, size_t length) {
 }
 #define STR_LEN 2000
 int main(){
-    char command,region;
+    char command;
     char command_data[1000];
-    int clip;
+    int clip,region;
     int exit_ = 0;
 
     if( (clip = clipboard_connect("../Local") )<1){
@@ -27,7 +27,7 @@ int main(){
         return 1;
     }
     while(!exit_){
-        if( 3 > scanf("%c %c %s",&command,&region,command_data)) continue;
+        if( 3 > scanf("%c %d %s",&command,&region,command_data)) continue;
 
         switch(command){
             case 'c':
