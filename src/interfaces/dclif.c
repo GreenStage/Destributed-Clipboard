@@ -327,6 +327,8 @@ void dclif_finalize(){
 
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         if(dclif->connections[i].sock_fd > 0){
+
+            shutdown(dclif->connections[i].sock_fd,SHUT_RDWR);
             if( (err = pthread_cancel(dclif->connections[i].recv_thread)) != 0){
                 SHOW_ERROR("Problem found while finishing thread %d: %d",i,err);
             }

@@ -223,6 +223,7 @@ void appif_finalize(){
 
     for(i = 0; i < MAX_APPS; i++){
         if(appif->connections[i].sock_fd > 0){
+            shutdown(appif->connections[i].sock_fd,SHUT_RDWR);
             if( (err = pthread_cancel(appif->connections[i].comm_thread)) != 0){
                 SHOW_ERROR("Problem found while finishing communication thread %d: %d",i,err);
             }
