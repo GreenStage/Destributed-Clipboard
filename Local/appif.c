@@ -123,7 +123,7 @@ void * appif_slave(void * index){
     }
     if(err < 1){
 
-        if(err == 0) SHOW_INFO("Connection closed from application %d.",index_);
+        if(err == 0) SHOW_INFO("Connection closed with application %d.",index_);
         else SHOW_WARNING("Error reading from socket with application %d: %s.",index_,strerror(errno));
         
         pthread_mutex_lock(&appif->lock);
@@ -140,8 +140,7 @@ void * appif_slave(void * index){
 }
 
 void *appif_listen(void * socket){
-    int sock,err;
-    struct packet_sync p_hello;
+    int sock;
     int new_client_fd;
     struct sockaddr_un new_client;
     unsigned addr_size;
@@ -172,11 +171,6 @@ void *appif_listen(void * socket){
             shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
             SHOW_WARNING("Could not accept new connection: maximum number of connections reached.");
-        }
-        else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
-            shutdown(new_client_fd,SHUT_RDWR);
-            CLOSE(new_client_fd);
-            SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
         }
         else{
             int *i = malloc(sizeof(int));
