@@ -226,5 +226,13 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
 }
 
 void clipboard_close(int clipboard_id){
+    struct packet p;
+    struct packet recv_p;
+
+    p.packetType = PACKET_GOODBYE;
+    if(sendData(clipboard_id, &p,sizeof(struct packet)) == -1){
+        SHOW_ERROR("Can not request clipboard data: %s",strerror(errno));    
+        return;
+    }
     close(clipboard_id);
 }

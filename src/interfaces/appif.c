@@ -38,6 +38,19 @@ int sendData(int sock,void * buf, int size){
     return sendBytes;
 }
 
+void close_connection(void * i){
+    int index = *((int*)i);
+    free(i);
+
+    pthread_mutex_lock(&appif->lock);
+    appif->n_connections--;
+    pthread_mutex_unlock(&appif->lock);
+
+    SHOW_INFO("Closing socket %d.",appif->connections[index].sock_fd);
+    CLOSE(appif->connections[index].sock_fd);
+    appif->connections[index].sock_fd = 0;
+}
+
 void * appif_slave(void * index){
     int err = 1,index_,sock;
     unsigned sendSize,pBytes;
@@ -48,11 +61,11 @@ void * appif_slave(void * index){
 
     index_ = *((int*)index);
     sock = appif->connections[index_].sock_fd;
-    free(index);
     
+
     displacement = (unsigned long) sizeof(struct packet);
     ASSERT_RETV(appif != NULL,NULL,"Applications interface not initiliazed.");
-
+    pthread_cleanup_push(close_connection,index);
     while(appif->run) {
         if(err < 1) break;
         
@@ -110,6 +123,9 @@ void * appif_slave(void * index){
                 }
                 break;
 
+            case PACKET_GOODBYE:
+                err = 0;
+                break;
             default: /*This should not happen, what's the deal with the application?*/
                 SHOW_WARNING("Invalid packet.");
                 break;
@@ -125,17 +141,11 @@ void * appif_slave(void * index){
 
         if(err == 0) SHOW_INFO("Connection closed with application %d.",index_);
         else SHOW_WARNING("Error reading from socket with application %d: %s.",index_,strerror(errno));
-        
-        pthread_mutex_lock(&appif->lock);
-        
-        CLOSE(appif->connections[index_].sock_fd);
-        appif->connections[index_].sock_fd = 0;
-        appif->n_connections--;
-
-        pthread_mutex_unlock(&appif->lock);
 
         SHOW_INFO("Connected applications: %d/%d",appif->n_connections,MAX_APPS);
     }
+    pthread_cleanup_pop(0);
+    close_connection(index);
     return NULL;
 }
 
@@ -220,14 +230,6 @@ void appif_finalize(){
                 SHOW_ERROR("Error finishing communication thread: %d",err);
             }
             else SHOW_INFO("Communication thread %d finished",i);
-        }
-    }
-
-    for(i = 0; i < MAX_APPS; i++){
-        if(appif->connections[i].sock_fd > 0){
-            SHOW_INFO("Closing socket %d.",appif->connections[i].sock_fd);
-            shutdown(appif->connections[i].sock_fd,SHUT_RDWR);
-            CLOSE(appif->connections[i].sock_fd);
         }
     }
 
