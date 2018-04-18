@@ -12,12 +12,10 @@
 #endif
 #include <sys/socket.h>
 
-#include "common.h"
+#include "../common.h"
+#include "../mem/clmem.h"
+#include "../thread/queue.h"
 #include "if.h"
-#include "clmem.h"
-#include "utils/time_m.h"
-#include "utils/queue.h"
-
 
 typedef struct connection_{
         int sock_fd;
@@ -41,6 +39,23 @@ typedef struct broadcast_t_{
 
 distributed_interface *dclif = NULL;
 
+unsigned started_at = 0;
+
+unsigned time_m_local(){
+    unsigned t = (unsigned) time(NULL);
+    return t;
+}
+
+void time_m_sync(unsigned now){
+    unsigned real_now;
+    real_now = time(NULL);
+    started_at = real_now - now;
+}
+
+unsigned time_m_now(){
+    unsigned t = (unsigned) time(NULL) - started_at;
+    return t;
+}
 
 void dclif_add_broadcast(void *data,int from){
     broadcast_t *broadcast;

@@ -3,6 +3,10 @@
         "conn.h": "c",
         "in.h": "c",
         "socket.h": "c",
-        "tcp.h": "c"
+        "tcp.h": "c",
+        "pthread.h": "c",
+        "clmem.h": "c",
+        "queue.h": "c",
+        "if.h": "c"
     }
 }

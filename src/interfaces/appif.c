@@ -1,5 +1,3 @@
-
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <pthread.h>
@@ -9,11 +7,10 @@
 #include <sys/un.h>
 #include <sys/socket.h>
 
-#include "common.h"
+#include "../common.h"
+#include "../mem/clmem.h"
+#include "../thread/queue.h"
 #include "if.h"
-#include "clmem.h"
-#include "utils/queue.h"
-#include "utils/time_m.h"
 
 typedef struct connection_{
         int sock_fd;

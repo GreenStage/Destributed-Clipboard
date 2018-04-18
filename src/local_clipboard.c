@@ -11,7 +11,7 @@
 #include <netdb.h>
 
 #include "common.h"
-#include "if.h"
+#include "interfaces/if.h"
 
 
 #ifndef h_addr

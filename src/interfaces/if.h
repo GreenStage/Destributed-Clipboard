@@ -1,6 +1,6 @@
 
-#ifndef DCLIF_HEADER
-#define DCLIF_HEADER
+#ifndef IF_HEADER
+#define IF_HEADER
 
 #define MAX_CLIPBOARDS 20
 #define MAX_APPS 20
@@ -16,6 +16,9 @@ typedef enum{
     CONN_APPLICATION
 } connection_type_t;
 
+void time_m_sync(unsigned now);
+unsigned time_m_now();
+unsigned time_m_local();
 
 int dclif_init(int socket);
 void *dclif_listen(void * socket);

@@ -4,6 +4,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <pthread.h>
 
 #define SHOW_ERRORS
 #define DEBUG 

@@ -2,6 +2,7 @@
 #define MEM_HEADER
 
 #define ERR_MEM_ALREADY_INIT 1
+#define ERR_LOCK_CREATE 2
 
 #define CLMEM_MSG(...)\
 do {  \

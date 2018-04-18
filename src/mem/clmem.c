@@ -1,18 +1,15 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include <pthread.h>
 #include <string.h>
-#include "utils/time_m.h"
-#include "common.h"
+#include "../common.h"
+#include "../thread/rwlock.h"
 #include "clmem.h"
 
 struct clipboard_memory{
     struct zones{
         void * data;
         unsigned size, from;
-        pthread_rwlock_t lock;
-        pthread_mutex_t update_lock;
-        pthread_cond_t cond_var;
+        rw_lock lock;
         unsigned update_cond;
     } zones[N_REGIONS];
 } *mem;
@@ -28,25 +25,11 @@ int mem_init(){
     memset(mem,0,sizeof(struct clipboard_memory));
 
     for(i = 0; i < N_REGIONS;i++){
-        if(pthread_rwlock_init(&mem->zones[i].lock,NULL) != 0){
+        if(rw_lock_init(mem->zones[i].lock) != 0){
             SHOW_ERROR("Could not create lock for mutual exclusion in region %d.",i);
             free(mem);
             mem = NULL;
-            return ERR_MUTEX_CREATE;
-        }
-        else if(pthread_mutex_init(&mem->zones[i].update_lock,NULL) != 0){
-            SHOW_ERROR("Could not create lock for mutual exclusion in region %d.",i);
-            free(mem);
-            mem = NULL;
-            return ERR_MUTEX_CREATE;
-        }
-        else if(pthread_cond_init(&mem->zones[i].cond_var,NULL) != 0){
-            SHOW_ERROR("Could not create lock for mutual exclusion in region %d.",i);
-            pthread_rwlock_destroy(&mem->zones[i].lock);
-            pthread_mutex_destroy(&mem->zones[i].update_lock);
-            free(mem);
-            mem = NULL;
-            return ERR_MUTEX_CREATE;
+            return ERR_LOCK_CREATE;
         }
     }
 
@@ -60,17 +43,17 @@ unsigned mem_wait(int region,void * buffer, unsigned size){
 
     ASSERT_RETV(region >= 0 && region < N_REGIONS,0,"Attempting to subscribe to memory region %d: Out ouf bounds.",region);
 
-    pthread_mutex_lock(&mem->zones[region].update_lock);
+    rw_lock_rlock(mem->zones[region].lock);
 
     aux =   mem->zones[region].update_cond;
     while(aux == mem->zones[region].update_cond){
-        pthread_cond_wait(&mem->zones[region].cond_var,&mem->zones[region].update_lock);
+        rw_lock_wait_update(mem->zones[region].lock);
     }
     
     cp_size = MIN(size,mem->zones[region].size);
     memcpy(buffer,mem->zones[region].data,cp_size);
 
-    pthread_mutex_unlock(&mem->zones[region].update_lock);
+    rw_lock_runlock(mem->zones[region].lock);
     return cp_size;
 }
 
@@ -79,12 +62,12 @@ unsigned mem_get(int region,void * buffer, unsigned size){
 
     ASSERT_RETV(region >= 0 && region < N_REGIONS,0,"Attempting to get data from memory region %d: Out ouf bounds.",region);
 
-    pthread_rwlock_rdlock(&mem->zones[region].lock);
+    rw_lock_rlock(mem->zones[region].lock);
 
     cp_size = MIN(size,mem->zones[region].size);
     memcpy(buffer,mem->zones[region].data,cp_size);
 
-    pthread_rwlock_unlock(&mem->zones[region].lock);
+    rw_lock_runlock(mem->zones[region].lock);
     return cp_size;
 }
 
@@ -98,8 +81,7 @@ unsigned mem_put(int region, void * data, unsigned size, unsigned update_cond){
     mem_cpy = malloc(size);
     memcpy(mem_cpy,data,size);
 
-    pthread_mutex_lock(&mem->zones[region].update_lock);
-    pthread_rwlock_wrlock(&mem->zones[region].lock);
+    rw_lock_wlock(mem->zones[region].lock);
 
     if(mem->zones[region].data != NULL){
         if(mem->zones[region].update_cond > update_cond){
@@ -113,38 +95,28 @@ unsigned mem_put(int region, void * data, unsigned size, unsigned update_cond){
 
     }
 
-
     mem->zones[region].data = mem_cpy;
     mem->zones[region].size = size;
     mem->zones[region].update_cond = update_cond;
 
-    pthread_rwlock_unlock(&mem->zones[region].lock);
-    pthread_cond_broadcast(&mem->zones[region].cond_var);
-    pthread_mutex_unlock(&mem->zones[region].update_lock);
-
+    rw_lock_wunlock(mem->zones[region].lock);
     CLMEM_MSG("Placed %u bytes in region %d.",size,region);
     return size;
-}
-
-int mem_remove(int region){
-    return mem_put(region,NULL,0,time_m_now());
 }
 
 void mem_finish(){
     int i;
 
     for(i = 0; i < N_REGIONS;i++){
-        pthread_mutex_lock(&mem->zones[i].update_lock);
-        pthread_rwlock_wrlock(&mem->zones[i].lock);
+        rw_lock_wlock(mem->zones[i].lock);
 
         if(mem->zones[i].data != NULL)
             free(mem->zones[i].data);
         mem->zones[i].data = NULL;
         
-        pthread_rwlock_unlock(&mem->zones[i].lock);
-        pthread_rwlock_destroy(&mem->zones[i].lock);
-        pthread_mutex_unlock(&mem->zones[i].update_lock);
-        pthread_mutex_destroy(&mem->zones[i].update_lock);
+        rw_lock_wunlock(mem->zones[i].lock);
+        rw_lock_destroy(mem->zones[i].lock);
+
     }
 
     CLMEM_MSG("All %d memory regions freed.",N_REGIONS);
