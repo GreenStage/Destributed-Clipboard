@@ -211,9 +211,11 @@ void *dclif_listen(void * socket){
         else{
             int *i = malloc(sizeof(int));
             for(*i = 0; *i < MAX_CLIPBOARDS; (*i)++){
-                if(0 == pthread_mutex_trylock(&dclif->connections[*i].lock) &&
-                    dclif->connections[*i].sock_fd <= 0){
-                    break;
+                if(0 == pthread_mutex_trylock(&dclif->connections[*i].lock)){
+                    if(dclif->connections[*i].sock_fd <= 0){
+                        break;
+                    }
+                    else pthread_mutex_unlock(&dclif->connections[*i].lock);
                 }
             }
             /*TODO ERROR HANDLING*/
