@@ -43,6 +43,7 @@ int sendData(int sock,void * buf, int size){
 typedef enum packet_type_{
     PACKET_NONE = 0x0,
     PACKET_HELLO,
+    PACKET_GOODBYE,
 
     PACKET_REQUEST_START = 0x80,
     PACKET_REQUEST_PASTE,
@@ -158,7 +159,7 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
         return 0;        
     }
 
-    if( ( retval = recvData(clipboard_id,&buf,recv_p.dataSize ) < 1) ){
+    if( ( retval = recvData(clipboard_id,buf,recv_p.dataSize ) < 1) ){
         SHOW_ERROR("CanrecvData not copy data to local clipboard: %s",strerror(errno));    
         return 0;
     }
@@ -204,7 +205,7 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
         return 0;        
     }
 
-    if( ( retval = recvData(clipboard_id,&buf,MIN(recv_p.dataSize,count) ) < 1) ){
+    if( ( retval = recvData(clipboard_id,buf,MIN(recv_p.dataSize,count) ) < 1) ){
         SHOW_ERROR("Can not copy data to local clipboard: %s",strerror(errno));    
         return 0;
      }

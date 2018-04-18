@@ -68,7 +68,7 @@ void * appif_slave(void * index){
         switch(p.packetType){
             case PACKET_REQUEST_PASTE:
                 response = malloc(sizeof(struct packet) + p.dataSize);
-                ((struct packet*)response)->packetType = PACKET_RESPONSE_NOTIFY;
+                ((struct packet*)response)->packetType = PACKET_RESPONSE_PASTE;
                 ((struct packet*)response)->recv_at = time_m_now();
                 ((struct packet*)response)->dataSize = mem_get(p.region,(void*)(response + displacement),p.dataSize);
                 sendSize = sizeof(struct packet) + ((struct packet*)response)->dataSize;
