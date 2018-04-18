@@ -19,7 +19,9 @@
 #ifdef SHOW_ERRORS
 #define SHOW_ERROR(...) \
 do {  \
+    fprintf(stderr,"\x1B[31m[ERROR]: \x1B[0m%s: ",__func__);\
     fprintf(stderr,__VA_ARGS__);\
+    fprintf(stderr,"\n");\
 } while(0)
 
 #else

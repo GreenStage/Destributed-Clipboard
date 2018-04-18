@@ -71,6 +71,7 @@ void * appif_slave(void * index){
                 ((struct packet*)response)->packetType = PACKET_RESPONSE_PASTE;
                 ((struct packet*)response)->recv_at = time_m_now();
                 ((struct packet*)response)->dataSize = mem_get(p.region,(void*)(response + displacement),p.dataSize);
+                SHOW_INFO("PASTE: %s",(char*) (((struct packet*)response)->data));
                 sendSize = sizeof(struct packet) + ((struct packet*)response)->dataSize;
                 break;
 
@@ -80,6 +81,7 @@ void * appif_slave(void * index){
                 ((struct packet*)response)->recv_at = time_m_now();
                 ((struct packet*)response)->dataSize = mem_wait(p.region,(void*)(response + displacement),p.dataSize);
                 sendSize = sizeof(struct packet) + ((struct packet*)response)->dataSize;
+                SHOW_INFO("NOTIFY: %s",(char*) (((struct packet*)response)->data));
                 break;
 
             case PACKET_REQUEST_COPY:
@@ -154,7 +156,7 @@ void *appif_listen(void * socket){
     ASSERT_RETV(sock > 0,NULL,"Invalid socket %d.",sock);
     ASSERT_RETV(listen(sock,MAX_APPS) == 0,NULL,"Can not listen with socket: %s.",strerror(errno));
 
-
+    SHOW_INFO("Started to listen to applications connection requests.");
     while(1){
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         new_client_fd = accept(sock,(struct sockaddr *) &new_client,&addr_size);

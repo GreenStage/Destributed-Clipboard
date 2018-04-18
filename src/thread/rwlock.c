@@ -22,7 +22,11 @@ int rw_lock_init(rw_lock lock){
     else if((ret = pthread_cond_init(&lock->update,NULL)) != 0){
         return ret;
     }
+#ifdef __linux__
     else return sem_init(&lock->sem,0,1);
+#else
+    else return 0;
+#endif
 }
 
 int rw_lock_destroy(rw_lock lock){
@@ -30,9 +34,11 @@ int rw_lock_destroy(rw_lock lock){
     if(lock == NULL){
         return ERR_LOCK_NULL;
     }
+#ifdef __linux__
     else if( (ret = sem_destroy(&lock->sem) != 0)){
         return ret;
     }
+#endif
     else if( (ret = pthread_mutex_destroy(&lock->m_lock)) != 0){
         return ret;
     }
