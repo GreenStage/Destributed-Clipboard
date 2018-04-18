@@ -16,13 +16,15 @@ void rand_str(char *dest, size_t length) {
     *dest = '\0';
 }
 #define STR_LEN 2000
-int main(){
+int main(int argc,char * agv[]){
     char command;
     char command_data[1000];
     int clip,region;
     int exit_ = 0;
 
-    if( (clip = clipboard_connect("../Local") )<1){
+    if(argc < 2) exit(1);
+
+    if( (clip = clipboard_connect(argv[1]) )<1){
         printf("ups");
         return 1;
     }

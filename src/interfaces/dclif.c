@@ -7,7 +7,7 @@
 
 #include <unistd.h>
 #include <netinet/in.h>
-#ifdef linux
+#ifdef __linux_
 #include <linux/tcp.h>
 #endif
 #include <sys/socket.h>
@@ -218,6 +218,7 @@ void *dclif_listen(void * socket){
                     else pthread_mutex_unlock(&dclif->connections[*i].lock);
                 }
             }
+            
             /*TODO ERROR HANDLING*/
             ASSERT_RETV(*i != MAX_CLIPBOARDS,NULL,"Zombie connection detected. exiting thread...");
             dclif->n_connections++;
@@ -264,7 +265,7 @@ int dclif_init(int socket){
         int err;
         unsigned delay = 0;
         int * index;
-#ifdef linux
+#ifdef __linux_
         struct tcp_info conn_info;
         socklen_t conn_size;
         /*Request curent time from the clipboard grid*/
