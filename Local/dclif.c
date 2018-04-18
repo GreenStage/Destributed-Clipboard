@@ -59,7 +59,6 @@ void * dclif_slave(void * index){
     unsigned updated_tick;
     struct packet p;
     void * full_packet;
-    void * input_buffer;
 
     index_ = *((int*)index);
     sock = dclif->connections[index_].sock_fd;
@@ -67,7 +66,6 @@ void * dclif_slave(void * index){
 
     displacement = (unsigned long) sizeof(struct packet);
     ASSERT_RETV(dclif != NULL,NULL,"Distributed clipboards interface not initiliazed.");
-    input_buffer = malloc(sizeof(p));
 
     while(dclif->run) {
         if(err < 1) break;
@@ -75,14 +73,18 @@ void * dclif_slave(void * index){
         memset(&p,0,sizeof(p));
         full_packet = NULL;
 
-        pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-        if( (err = recvData(sock,&input_buffer,sizeof(p)) != sizeof(p)) ){
+        if( (err = recvData(sock,&p,sizeof(p)) != sizeof(p)) ){
             continue;
         }
-        memcpy(&p,input_buffer,sizeof(p));
-        
+
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
+        if(p.packetType == PACKET_GOODBYE){
+            CLOSE(sock);
+            err = 0;
+            break;
+        }
+        
         full_packet = malloc(sizeof(struct packet) + p.dataSize);
 
         err = recvData(sock,full_packet + displacement,p.dataSize);
@@ -104,7 +106,7 @@ void * dclif_slave(void * index){
     }
     if(err < 1){
 
-        if(err == 0) SHOW_INFO("Connection closed from clipboard %d.",index_);
+        if(err == 0) SHOW_INFO("Connection closed with clipboard %d.",index_);
         else SHOW_WARNING("Error reading from socket with clipboard %d: %s.",index_,strerror(errno));
         
         pthread_mutex_lock(&dclif->connections[index_].lock);
@@ -266,8 +268,25 @@ int dclif_init(int socket){
 
 void dclif_finalize(){
     int i,err;
+    struct packet * bye_p;
+    broadcast_t * b;
+
+    bye_p = malloc(sizeof(struct packet));
+    b = malloc(sizeof(broadcast_t));
+
+    bye_p->packetType = PACKET_GOODBYE;
+    b->from = 0;
+    b->p = bye_p;
 
     dclif->run = false;
+
+    queue_push(dclif->broadcasts,b);
+    queue_terminate(dclif->broadcasts);
+
+    if( (err = pthread_join(dclif->master_thread,NULL) ) != 0){
+        SHOW_ERROR("Problem found while finishing thread \"master_thread\": %d",err);
+    }
+    else SHOW_INFO("All remaining responses sent.");
 
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         if(dclif->connections[i].sock_fd > 0){
@@ -280,13 +299,6 @@ void dclif_finalize(){
             else SHOW_INFO("Slave thread %d finished",i);
         }
     }
-
-    queue_terminate(dclif->broadcasts);
-
-    if( (err = pthread_join(dclif->master_thread,NULL) ) != 0){
-        SHOW_ERROR("Problem found while finishing thread \"master_thread\": %d",err);
-    }
-    else SHOW_INFO("All remaining responses sent.");
 
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         if(dclif->connections[i].sock_fd > 0){

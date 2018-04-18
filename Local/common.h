@@ -96,7 +96,8 @@ typedef enum bool_{
 typedef enum packet_type_{
     PACKET_NONE = 0x0,
     PACKET_HELLO,
-
+    PACKET_GOODBYE,
+    
     PACKET_REQUEST_START = 0x80,
     PACKET_REQUEST_PASTE,
     PACKET_REQUEST_COPY,
