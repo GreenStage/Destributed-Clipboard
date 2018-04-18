@@ -82,7 +82,9 @@ do{\
 #define CLOSE(a)\
 do{\
     if(close(a) == -1){\
+        pthread_mutex_lock(&print_lock);\
         SHOW_ERROR("Could not close socket %d: %s.",a,strerror(errno));\
+        pthread_mutex_unlock(&print_lock);\
     }\
 }while(0)
 
@@ -97,7 +99,7 @@ typedef enum packet_type_{
     PACKET_NONE = 0x0,
     PACKET_HELLO,
     PACKET_GOODBYE,
-    
+
     PACKET_REQUEST_START = 0x80,
     PACKET_REQUEST_PASTE,
     PACKET_REQUEST_COPY,

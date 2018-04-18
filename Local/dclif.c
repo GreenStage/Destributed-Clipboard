@@ -7,6 +7,9 @@
 
 #include <unistd.h>
 #include <netinet/in.h>
+#ifdef linux
+#include <linux/tcp.h>
+#endif
 #include <sys/socket.h>
 
 #include "common.h"
@@ -56,7 +59,7 @@ void dclif_add_broadcast(void *data,int from){
 void * dclif_slave(void * index){
     int err = 1,sock,index_;
     unsigned long displacement;
-    unsigned updated_tick;
+    unsigned pBytes;
     struct packet p;
     void * full_packet;
 
@@ -94,8 +97,8 @@ void * dclif_slave(void * index){
             free(full_packet);
         }
         else{
-            updated_tick = mem_put(p.region,(void*) (full_packet + displacement),p.dataSize,p.recv_at);
-            if(updated_tick == 0){
+            pBytes = mem_put(p.region,(void*) (full_packet + displacement),p.dataSize,p.recv_at);
+            if(pBytes == 0){
                 free(full_packet);
             }
             else{
@@ -242,15 +245,27 @@ int dclif_init(int socket){
 
     if(socket){
         int err;
+        unsigned delay = 0;
         int * index;
+#ifdef linux
+        struct tcp_info conn_info;
+        socklen_t conn_size;
+        /*Request curent time from the clipboard grid*/
+        /*Taking into account RTT time to reach peer*/
+        conn_size = sizeof(conn_info);
+        getsockopt(socket, IPPROTO_TCP, TCP_INFO, &conn_info, &conn_size);
 
+        SHOW_WARNING("RTT is %d",conn_info.tcpi_rtt);
+        delay = conn_info.tcpi_rtt/2;
+#endif
         err = recvData(socket,&hello_p,sizeof(hello_p));
 
         if(err < (int)sizeof(hello_p)){
             SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %d",err);
             CLOSE(socket);
         }
-        time_m_sync(hello_p.time);
+
+        time_m_sync(hello_p.time + delay);
 
         index = malloc(sizeof(int));
 

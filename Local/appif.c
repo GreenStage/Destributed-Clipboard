@@ -42,10 +42,10 @@ int sendData(int sock,void * buf, int size){
 }
 
 void * appif_slave(void * index){
-    int err,index_,sock;
-    unsigned sendSize;
+    int err = 1,index_,sock;
+    unsigned sendSize,pBytes;
     unsigned long displacement;
-    unsigned updated_tick;
+    unsigned time_n;
     struct packet p;
     void * full_packet, *response;
 
@@ -93,19 +93,20 @@ void * appif_slave(void * index){
                     break;
                 }
 
-                updated_tick = mem_put(p.region,(void*) (full_packet + displacement),p.dataSize,time_m_now());
+                time_n = time_m_now();
+                pBytes = mem_put(p.region,(void*) (full_packet + displacement),p.dataSize,time_n);
 
                 response = malloc(sizeof(struct packet));
                 ((struct packet*)response)->packetType = PACKET_RESPONSE_ACK;
-                ((struct packet*)response)->recv_at = updated_tick;
-                ((struct packet*)response)->dataSize = updated_tick == 0 ? 0 : p.dataSize;
+                ((struct packet*)response)->recv_at = time_n;
+                ((struct packet*)response)->dataSize = pBytes;
                 sendSize = sizeof(struct packet);
 
-                if(updated_tick == 0){
+                if(pBytes == 0){
                     free(full_packet);
                 }else{
                     memcpy(full_packet,&p,sizeof(p));
-                    ((struct packet*)full_packet)->recv_at = updated_tick;
+                    ((struct packet*)full_packet)->recv_at = time_n;
                     dclif_add_broadcast(full_packet,sock);
                 }
                 break;

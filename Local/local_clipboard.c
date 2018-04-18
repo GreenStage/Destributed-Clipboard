@@ -137,6 +137,7 @@ int main(int argc, char *argv[]){
 
     while(getchar() != 'q');
 
+    SHOW_WARNING("Terminating....");
     if( (err = pthread_cancel(app_thread) ) != 0){
         SHOW_ERROR("Error canceling thread \"app_thread\": %d",err);
     }
