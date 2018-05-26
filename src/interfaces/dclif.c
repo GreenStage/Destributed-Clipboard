@@ -28,7 +28,6 @@ typedef struct distributed_interface_{
     connection_t connections[MAX_CLIPBOARDS];
     pthread_mutex_t lock;
     queue * broadcasts;
-    bool run;
     pthread_t master_thread;
 } distributed_interface;
 
@@ -57,11 +56,36 @@ unsigned time_m_now(){
     return t;
 }
 
+long long sendData(int sock,void * buf, int size){
+    int sendBytes = 0;
+    int ret;
+    while(sendBytes < size){
+        if( (ret = send(sock,buf+sendBytes,size-sendBytes,0)) == -1){
+            return ret;
+        }
+        else sendBytes += ret;
+    }
+    return sendBytes;
+}
+
+long long recvData(int sock,void * buf, int size){
+    int recvBytes = 0;
+    int ret;
+    while(recvBytes < size){
+        if((ret = recv(sock,buf,size,MSG_WAITALL)) < 1){
+            return ret;
+        }
+        else recvBytes += ret;
+    }
+    return recvBytes;
+}
+ 
+
 void dclif_add_broadcast(void *data,int from){
     broadcast_t *broadcast;
 
-    ASSERT_RET(dclif != NULL,"Distributed clipboards interface not initiliazed.");
-    ASSERT_RET(dclif->broadcasts != NULL,"Broadcast queue not initiliazed.");
+    ASSERT_RET(dclif != NULL,"Distributed clipboards interface not initialized.");
+    ASSERT_RET(dclif->broadcasts != NULL,"Broadcast queue not initialized.");
 
     broadcast = malloc(sizeof(broadcast_t));
     ASSERT_RET(broadcast != NULL,"Error allocating memory for broadcast structure.");
@@ -71,7 +95,7 @@ void dclif_add_broadcast(void *data,int from){
     queue_push(dclif->broadcasts,(void*) broadcast);
 }
 
-void close_connection_(void * i){
+void dclif_close_conn(void * i){
     int index = *((int*)i);
     free(i);
 
@@ -85,7 +109,8 @@ void close_connection_(void * i){
 }
 
 void * dclif_slave(void * index){
-    int err = 1,sock,index_;
+    long long err = 1;
+    int sock,index_;
     unsigned long displacement;
     unsigned pBytes;
     struct packet p;
@@ -96,9 +121,9 @@ void * dclif_slave(void * index){
 
 
     displacement = (unsigned long) sizeof(struct packet);
-    ASSERT_RETV(dclif != NULL,NULL,"Distributed clipboards interface not initiliazed.");
-    pthread_cleanup_push(close_connection_,index);
-    while(dclif->run) {
+    ASSERT_RETV(dclif != NULL,NULL,"Distributed clipboards interface not initialized.");
+    pthread_cleanup_push(dclif_close_conn,index);
+    while(1) {
         if(err < 1) break;
         
         memset(&p,0,sizeof(p));
@@ -117,7 +142,7 @@ void * dclif_slave(void * index){
         }
 
         full_packet = malloc(sizeof(struct packet) + p.dataSize);
-
+        
         err = recvData(sock,full_packet + displacement,p.dataSize);
 
         if(err != p.dataSize || p.packetType != PACKET_REQUEST_COPY){
@@ -136,14 +161,13 @@ void * dclif_slave(void * index){
         }
     }
     if(err < 1){
-
         if(err == 0) SHOW_INFO("Connection closed with clipboard %d.",index_);
         else SHOW_WARNING("Error reading from socket with clipboard %d: %s.",index_,strerror(errno));
 
         SHOW_INFO("Connected clipboards: %d/%d", dclif->n_connections,MAX_CLIPBOARDS);
     }
     pthread_cleanup_pop(0);
-    close_connection_(index);
+    dclif_close_conn(index);
     return NULL;
 }
 
@@ -151,7 +175,7 @@ void * dclif_broadcast(){
     int i;
     broadcast_t * msg;
 
-    ASSERT_RETV(dclif != NULL,NULL,"Distributed clipboard interface not initiliazed.");
+    ASSERT_RETV(dclif != NULL,NULL,"Distributed clipboard interface not initialized.");
 
     while( ( msg = (broadcast_t*) queue_pop(dclif->broadcasts) ) != NULL) {
 
@@ -186,7 +210,7 @@ void *dclif_listen(void * socket){
 
     p_hello.packetType = PACKET_HELLO;
 
-    ASSERT_RETV(dclif != NULL,NULL,"Distributed Clipboard Interface not initiliazed.");
+    ASSERT_RETV(dclif != NULL,NULL,"Distributed Clipboard Interface not initialized.");
     ASSERT_RETV(sock > 0,NULL,"Invalid socket %d.",sock);
     ASSERT_RETV(listen(sock,MAX_CLIPBOARDS) == 0,NULL,"Can not listen on socket: %s.",strerror(errno));
 
@@ -247,14 +271,13 @@ int dclif_init(int socket){
     /*Init time syncronization*/
     time_m_sync(0);
 
-    ASSERT_RETV(dclif == NULL,ERR_IF_EXISTS,"Distributed clipboard interface already initiliazed .");
+    ASSERT_RETV(dclif == NULL,ERR_IF_EXISTS,"Distributed clipboard interface already initialized .");
 
     dclif = malloc(sizeof(distributed_interface));
     ASSERT_RETV(dclif != NULL,ERR_MEM_ALLOC,"Error allocating memory for distributed clipboard interface.");
 
     memset(dclif,0,sizeof(distributed_interface));
     dclif->broadcasts = queue_create();
-    dclif->run = true;
 
     pthread_mutex_init(&dclif->lock,NULL);
     for(i = 0; i < MAX_CLIPBOARDS; i++){
@@ -314,8 +337,6 @@ void dclif_finalize(){
     bye_p->packetType = PACKET_GOODBYE;
     b->from = 0;
     b->p = bye_p;
-
-    dclif->run = false;
 
     queue_push(dclif->broadcasts,b);
     queue_terminate(dclif->broadcasts);

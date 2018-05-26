@@ -41,6 +41,7 @@ int main(int argc, char *argv[]){
             myport = atoi(argv[i+1]);
         }
     }
+
     if(myport <= 0){/*TODO usage*/
         SHOW_ERROR("No valid port specified.");
         SHOW_INFO("%s",usage);
@@ -81,15 +82,20 @@ int main(int argc, char *argv[]){
         return ERR_BIND_SOCKET;
     }
 
-    if(argc > 1 && strncmp(argv[1],"-c",2) == 0){
+    for(i = 0; i < argc - 2;i++){
+        if(strncmp(argv[i],"-c",2) == 0){
+            break;
+        }
+    }
+    if(i < argc - 2 && strncmp(argv[i],"-c",2) == 0){
         
         if(argc < 3){
             SHOW_ERROR("Can not run in connected mode: No peer IP address specified.");
             return ERR_NO_IP;
         }
 
-        if((hostinfo= gethostbyname(argv[2])) == NULL) {
-            SHOW_ERROR("%s unknown IP address.",argv[2]);
+        if((hostinfo= gethostbyname(argv[i+1])) == NULL) {
+            SHOW_ERROR("%s unknown IP address.",argv[i+1]);
             return ERR_INVALID_IP;
         }
 
@@ -98,7 +104,7 @@ int main(int argc, char *argv[]){
             return ERR_NO_PORT;
         }
 
-        if( ( port = atoi(argv[3]) ) == 0){
+        if( ( port = atoi(argv[i+2]) ) == 0){
             SHOW_ERROR("Can not run in connected mode: Invalid port.");
             return ERR_INV_PORT;         
         }
@@ -113,7 +119,7 @@ int main(int argc, char *argv[]){
         peer_addr.sin_port = htons(port);
 
         if (connect(sock, (struct sockaddr *) &peer_addr,sizeof(struct sockaddr)) == -1) {
-            SHOW_ERROR("Could not connect to %s",argv[2]);
+            SHOW_ERROR("Could not connect to %s",argv[i+1]);
             return ERR_CANT_CONNECT;
         }
     }

@@ -1,8 +1,9 @@
 #include <stdlib.h>
 #include <stdio.h>
-#include "clipboard.h"
+#include "../Library/clipboard.h"
 #include <string.h>
 #include <unistd.h>
+#define STR_LEN 2000
 
 void rand_str(char *dest, size_t length) {
     char charset[] = "0123456789"
@@ -15,7 +16,7 @@ void rand_str(char *dest, size_t length) {
     }
     *dest = '\0';
 }
-#define STR_LEN 2000
+
 int main(int argc,char * argv[]){
     char command;
     char command_data[1000];

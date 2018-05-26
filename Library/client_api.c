@@ -60,7 +60,7 @@ typedef enum packet_type_{
 struct packet{
     uint8_t packetType;
     uint8_t region;
-    uint16_t dataSize;
+    uint32_t dataSize;
     uint32_t recv_at;
     uint8_t data[0];
 }__attribute__((__packed__));
@@ -105,7 +105,6 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
     }
 
     p = (struct packet*) malloc(p_length);
-
     p->packetType = PACKET_REQUEST_COPY;
     p->region = (uint8_t) region;
     p->recv_at = 0;
@@ -161,15 +160,15 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
         return 0;        
     }
 
-    if( ( retval = recvData(clipboard_id,buf,recv_p.dataSize ) < 1) ){
-        SHOW_ERROR("CanrecvData not copy data to local clipboard: %s",strerror(errno));    
+    if( ( retval = recvData(clipboard_id,buf,recv_p.dataSize )) < 1 ){
+        SHOW_ERROR("Could not paste data from local clipboard: %s",strerror(errno));    
         return 0;
     }
 
     /*Something went wrong with the clipboard, this should not happen*/
      if(recv_p.dataSize > count){
          uint8_t * trash = (uint8_t *) malloc(recv_p.dataSize - count);
-         if( recvData(clipboard_id,trash,MIN(recv_p.dataSize,count) < 1) ){
+         if(recvData(clipboard_id,trash,MIN(recv_p.dataSize,count) < 1) ){
             SHOW_ERROR("Error cleaning socket: %s",strerror(errno));
          }
          free(trash);
@@ -207,7 +206,7 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
         return 0;        
     }
 
-    if( ( retval = recvData(clipboard_id,buf,MIN(recv_p.dataSize,count) ) < 1) ){
+    if( ( retval = recvData(clipboard_id,buf,MIN(recv_p.dataSize,count) )) < 1 ){
         SHOW_ERROR("Can not copy data to local clipboard: %s",strerror(errno));    
         return 0;
      }
@@ -227,7 +226,6 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
 
 void clipboard_close(int clipboard_id){
     struct packet p;
-    struct packet recv_p;
 
     p.packetType = PACKET_GOODBYE;
     if(sendData(clipboard_id, &p,sizeof(struct packet)) == -1){

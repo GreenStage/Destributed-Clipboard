@@ -42,7 +42,7 @@ int rw_lock_destroy(rw_lock lock){
     else if( (ret = pthread_mutex_destroy(&lock->m_lock)) != 0){
         return ret;
     }
-    else if((ret = pthread_cond_destroy(&lock->update)) != 0){
+    else if( (ret = pthread_cond_destroy(&lock->update)) != 0){
         return ret;
     }
     free(lock);

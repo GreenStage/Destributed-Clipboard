@@ -85,7 +85,7 @@ void * queue_pop(queue * q){
 
     pthread_mutex_lock(&q->lock);
 
-    ASSERT_RETV(q != NULL,NULL,"Queue not initiliazed.");
+    ASSERT_RETV(q != NULL,NULL,"Queue not initialized.");
 
     while(q->n_elements == 0 && !q->terminate){
         pthread_cond_wait(&q->trigger,&q->lock);

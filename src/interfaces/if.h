@@ -29,8 +29,8 @@ int appif_init();
 void *appif_listen(void * socket);
 void appif_finalize();
 
-int sendData(int sock,void * buf, int size);
-#define recvData(sock,buf,size) recv(sock,buf,size,MSG_WAITALL)
+long long sendData(int sock,void * buf, int size);
+long long recvData(int sock,void * buf,int size);
 
 typedef enum packet_type_{
     PACKET_NONE = 0x0,
@@ -50,7 +50,7 @@ typedef enum packet_type_{
 struct packet{
     uint8_t packetType;
     uint8_t region;
-    uint16_t dataSize;
+    uint32_t dataSize;
     uint32_t recv_at;
     uint8_t data[0];
 }__attribute__((__packed__));

@@ -26,19 +26,7 @@ typedef struct application_interface_{
 
 application_interface *appif = NULL;
 
-int sendData(int sock,void * buf, int size){
-    int sendBytes = 0;
-    int ret;
-    while(sendBytes < size){
-        if( (ret = send(sock,buf+sendBytes,size-sendBytes,0)) == -1){
-            return ret;
-        }
-        else sendBytes += ret;
-    }
-    return sendBytes;
-}
-
-void close_connection(void * i){
+void appif_close_conn(void * i){
     int index = *((int*)i);
     free(i);
 
@@ -52,9 +40,10 @@ void close_connection(void * i){
 }
 
 void * appif_slave(void * index){
-    int err = 1,index_,sock;
-    unsigned sendSize,pBytes;
-    unsigned long displacement;
+    long long err = 1;
+    int index_,sock;
+    uint32_t sendSize,pBytes;
+    uint32_t displacement;
     unsigned time_n;
     struct packet p;
     void * full_packet, *response;
@@ -62,11 +51,11 @@ void * appif_slave(void * index){
     index_ = *((int*)index);
     sock = appif->connections[index_].sock_fd;
     
-
     displacement = (unsigned long) sizeof(struct packet);
-    ASSERT_RETV(appif != NULL,NULL,"Applications interface not initiliazed.");
-    pthread_cleanup_push(close_connection,index);
-    while(appif->run) {
+    ASSERT_RETV(appif != NULL,NULL,"Applications interface not initialized.");
+    pthread_cleanup_push(appif_close_conn,index);
+
+    while(1) {
         if(err < 1) break;
         
         memset(&p,0,sizeof(p));
@@ -104,7 +93,6 @@ void * appif_slave(void * index){
                     full_packet = NULL;
                     break;
                 }
-
                 time_n = time_m_now();
                 pBytes = mem_put(p.region,(void*) (full_packet + displacement),p.dataSize,time_n);
 
@@ -138,14 +126,13 @@ void * appif_slave(void * index){
         }
     }
     if(err < 1){
-
         if(err == 0) SHOW_INFO("Connection closed with application %d.",index_);
         else SHOW_WARNING("Error reading from socket with application %d: %s.",index_,strerror(errno));
 
         SHOW_INFO("Connected applications: %d/%d",appif->n_connections,MAX_APPS);
     }
     pthread_cleanup_pop(0);
-    close_connection(index);
+    appif_close_conn(index);
     return NULL;
 }
 
@@ -155,14 +142,13 @@ void *appif_listen(void * socket){
     struct sockaddr_un new_client;
     unsigned addr_size;
 
-
     ASSERT_RETV(socket != NULL,NULL,"No socket passed.");
     sock =  *((int*)socket);
     free(socket);
 
     addr_size = sizeof(struct sockaddr_un);
 
-    ASSERT_RETV(appif != NULL,NULL,"Applications interface not initiliazed.");
+    ASSERT_RETV(appif != NULL,NULL,"Applications interface not initialized.");
     ASSERT_RETV(sock > 0,NULL,"Invalid socket %d.",sock);
     ASSERT_RETV(listen(sock,MAX_APPS) == 0,NULL,"Can not listen with socket: %s.",strerror(errno));
 
@@ -204,22 +190,19 @@ void *appif_listen(void * socket){
 
 int appif_init(){
 
-    ASSERT_RETV(appif == NULL,ERR_IF_EXISTS,"No connection info passed.");
+    ASSERT_RETV(appif == NULL,ERR_IF_EXISTS,"Application interface already initialized.");
 
     appif = malloc(sizeof(application_interface));
     ASSERT_RETV(appif != NULL,ERR_MEM_ALLOC,"Error allocating memory for application interface.");
 
     memset(appif,0,sizeof(application_interface));
     pthread_mutex_init(&appif->lock,NULL);
-    appif->run = true;
 
     return 0;
 }
 
 void appif_finalize(){
     int i,err;
-
-    appif->run = false;
 
     for(i = 0; i < MAX_APPS; i++){
         if(appif->connections[i].sock_fd > 0){
