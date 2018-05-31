@@ -2,6 +2,7 @@
 #ifndef IF_HEADER
 #define IF_HEADER
 
+#define CLOCK_SYNC_PERIOD 30
 #define MAX_CLIPBOARDS 20
 #define MAX_APPS 20
 
