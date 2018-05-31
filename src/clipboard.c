@@ -86,9 +86,9 @@ int main(int argc, char *argv[]){
             break;
         }
     }
-    if(i < argc - 2 && strncmp(argv[i],"-c",2) == 0){
+    if(i < argc - 2){
         
-        if(argc < 3){
+        if(argc < 5){
             SHOW_ERROR("Can not run in connected mode: No peer IP address specified.");
             return ERR_NO_IP;
         }
@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
             return ERR_INVALID_IP;
         }
 
-        if(argc < 4){
+        if(argc < 6){
             SHOW_ERROR("Can not run in connected mode: No peer port specified.");
             return ERR_NO_PORT;
         }

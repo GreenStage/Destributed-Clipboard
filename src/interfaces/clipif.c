@@ -42,7 +42,19 @@ typedef struct broadcast_t_{
 } broadcast_t;
 
 distributed_interface *clipif = NULL;
- 
+
+void *clipif_clock_man(){
+    struct packet_sync p;
+    p.packetType = PACKET_TIME_SYNC;
+
+    while(1){
+        sleep(10);
+        p.time = time_m_now();
+        SHOW_WARNING("SYNC TIME %u",p.time);
+        clipif_add_broadcast(&p,-1);
+    }
+}
+
 int clipif_add_broadcast(void *data,int from){
     int err;
     broadcast_t *broadcast;
@@ -65,15 +77,30 @@ int clipif_add_broadcast(void *data,int from){
 
 void clipif_close_conn(void * i){
     int index = *((int*)i);
+    int socket;
     free(i);
 
+    
+    pthread_mutex_lock(&clipif->connections[index].lock);
+    socket = clipif->connections[index].sock_fd;
+
+    SHOW_INFO("Closing socket %d.",socket);
+    CLOSE(socket);
+    clipif->connections[index].sock_fd = 0;
+    pthread_mutex_unlock(&clipif->connections[index].lock);
+    
+    /*Make sure that access to clif->hasparent and clipif->n_connections variables
+    is atomic*/
     pthread_mutex_lock(&clipif->lock);
+    if(clipif->parentSock == socket){
+        clipif->hasparent = 0;
+        clipif->parentDelay = 0;
+        SHOW_INFO("Connection with master closed, becoming master...");
+        pthread_create(&clipif->clock_thread,NULL,clipif_clock_man,NULL);
+    }
     clipif->n_connections--;
     pthread_mutex_unlock(&clipif->lock);
 
-    SHOW_INFO("Closing socket %d.",clipif->connections[index].sock_fd);
-    CLOSE(clipif->connections[index].sock_fd);
-    clipif->connections[index].sock_fd = 0;
 }
 
 void * clipif_slave(void * index){
@@ -226,18 +253,6 @@ void * clipif_broadcast(){
         free(msg);
     }
     return NULL;
-}
-
-void *clipif_clock_man(){
-    struct packet_sync p;
-    p.packetType = PACKET_TIME_SYNC;
-
-    while(1){
-        sleep(10);
-        p.time = time_m_now();
-        SHOW_WARNING("SYNC TIME %u",p.time);
-        clipif_add_broadcast(&p,-1);
-    }
 }
 
 void *clipif_listen(void * socket){
@@ -396,7 +411,8 @@ void clipif_finalize(){
 
     queue_push(clipif->broadcasts,b);
     queue_terminate(clipif->broadcasts);
-
+    
+    pthread_mutex_lock(&clipif->lock);
     if(!clipif->hasparent){
         if( (err = pthread_cancel(clipif->clock_thread)) != 0){
             SHOW_ERROR("Problem found while finishing clock thread: %d",err);
@@ -406,7 +422,8 @@ void clipif_finalize(){
         }
         else SHOW_INFO("Clock thread finished.");
     }
-   
+    pthread_mutex_unlock(&clipif->lock);
+
     if( (err = pthread_join(clipif->master_thread,NULL) ) != 0){
         SHOW_ERROR("Problem found while finishing thread \"master_thread\": %d",err);
     }

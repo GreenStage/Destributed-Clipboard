@@ -130,8 +130,9 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
         return 0;
     }
 
+    p_length = p->dataSize;
     free(p);
-    return count;
+    return p_length;
 }
 
 
