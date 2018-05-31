@@ -44,7 +44,7 @@ int sendData(int sock,void * buf, int size){
 
 typedef enum packet_type_{
     PACKET_NONE = 0x0,
-    PACKET_HELLO,
+    PACKET_TIME_SYNC, /*Not used here*/
     PACKET_GOODBYE,
 
     PACKET_REQUEST_START = 0x80,
@@ -59,15 +59,20 @@ typedef enum packet_type_{
 
 struct packet{
     uint8_t packetType;
+}__attribute__((__packed__));
+
+struct packet_fetch{
+    uint8_t packetType;
+    uint8_t region;
+    uint32_t dataSize;
+}__attribute__((__packed__));
+
+struct packet_data{
+    uint8_t packetType;
     uint8_t region;
     uint32_t dataSize;
     uint32_t recv_at;
     uint8_t data[0];
-}__attribute__((__packed__));
-
-struct packet_sync{
-    uint8_t packetType;
-    uint32_t time;
 }__attribute__((__packed__));
 
 
@@ -96,15 +101,15 @@ int clipboard_connect(char * clipboard_dir){
 
 int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
     int retval;
-    struct packet * p;
-    unsigned p_length = sizeof(struct packet) + count;
+    struct packet_data * p;
+    unsigned p_length = sizeof(struct packet_data) + count;
 
     if(region < 0 || region > 9){
         SHOW_ERROR("Invalid region: %s",strerror(errno));  
         return 0;
     }
 
-    p = (struct packet*) malloc(p_length);
+    p = (struct packet_data*) malloc(p_length);
     p->packetType = PACKET_REQUEST_COPY;
     p->region = (uint8_t) region;
     p->recv_at = 0;
@@ -119,7 +124,7 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
         return 0;
     }
 
-    if( ( retval = recvData(clipboard_id,(void*) p,sizeof(struct packet)) < 1) ){
+    if( ( retval = recvData(clipboard_id,(void*) p,sizeof(struct packet_fetch)) < 1) ){
         SHOW_ERROR("Can not copy data to local clipboard: %s",strerror(errno));  
         free(p);  
         return 0;
@@ -133,8 +138,8 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
 
 int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
     int retval;
-    struct packet p;
-    struct packet recv_p;
+    struct packet_fetch p;
+    struct packet_data recv_p;
 
     if(region < 0 || region > 9){
         SHOW_ERROR("Invalid region: %s",strerror(errno));  
@@ -145,12 +150,12 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
     p.region = region;
     p.dataSize = count;
 
-    if(send(clipboard_id,(const char*) &p,sizeof(struct packet),0) == -1){
+    if(send(clipboard_id,(const char*) &p,sizeof(struct packet_fetch),0) == -1){
         SHOW_ERROR("Can not request clipboard data: %s",strerror(errno));    
         return 0;
     }
 
-    if( ( retval = recvData(clipboard_id,&recv_p,sizeof(struct packet)) ) < 1){
+    if( ( retval = recvData(clipboard_id,&recv_p,sizeof(struct packet_data)) ) < 1){
         SHOW_ERROR("Can not receive data from local clipboard: %s",strerror(errno));    
         return 0;
      }
@@ -179,8 +184,8 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
 
 int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
     int retval;
-    struct packet p;
-    struct packet recv_p;
+    struct packet_fetch p;
+    struct packet_data recv_p;
 
     if(region < 0 || region > 9){
         SHOW_ERROR("Invalid region: %s",strerror(errno));  
@@ -191,12 +196,12 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
     p.region = region;
     p.dataSize = count;
 
-    if(sendData(clipboard_id, &p,sizeof(struct packet)) == -1){
+    if(sendData(clipboard_id, &p,sizeof(struct packet_fetch)) == -1){
         SHOW_ERROR("Can not request clipboard data: %s",strerror(errno));    
         return 0;
     }
 
-    if( ( retval = recvData(clipboard_id,&recv_p,sizeof(struct packet)) ) < 1){
+    if( ( retval = recvData(clipboard_id,&recv_p,sizeof(struct packet_data)) ) < 1){
         SHOW_ERROR("Can not receive data from local clipboard: %s",strerror(errno));    
         return 0;
      }

@@ -47,11 +47,11 @@ queue * queue_create(){
 }
 
 
-void queue_push(queue * q, void * data){
+int queue_push(queue * q, void * data){
     queue_node * new;
     
     new = malloc(sizeof(queue_node));
-    ASSERT_RET(new != NULL,"Could not allocate memmory for queue node.");
+    ASSERT_RETV(new != NULL,1,"Could not allocate memmory for queue node.");
 
     new->next = NULL;
     new->data = data;
@@ -61,7 +61,7 @@ void queue_push(queue * q, void * data){
     if(q == NULL || q->terminate){
         SHOW_WARNING("Can not push data to queue: finished.");
         free(new);
-        return;
+        return 2;
     }
     
     if(q->last){
@@ -76,7 +76,7 @@ void queue_push(queue * q, void * data){
     pthread_mutex_unlock(&q->lock);
 
     pthread_cond_signal(&q->trigger);
-
+    return 0;
 }
 
 void * queue_pop(queue * q){

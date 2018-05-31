@@ -10,6 +10,8 @@
 #include "../common.h"
 #include "../mem/clmem.h"
 #include "../thread/queue.h"
+#include "../utils/time.h"
+#include "../utils/packet.h"
 #include "if.h"
 
 typedef struct connection_{
@@ -28,86 +30,134 @@ application_interface *appif = NULL;
 
 void appif_close_conn(void * i){
     int index = *((int*)i);
+
+    SHOW_INFO("Cleaning up communication thread with sock %d",appif->connections[index].sock_fd);
     free(i);
 
     pthread_mutex_lock(&appif->lock);
     appif->n_connections--;
-    pthread_mutex_unlock(&appif->lock);
-
+   
     SHOW_INFO("Closing socket %d.",appif->connections[index].sock_fd);
     CLOSE(appif->connections[index].sock_fd);
     appif->connections[index].sock_fd = 0;
+    pthread_mutex_unlock(&appif->lock);
 }
 
 void * appif_slave(void * index){
-    long long err = 1;
-    int index_,sock;
-    uint32_t sendSize,pBytes;
-    uint32_t displacement;
+    unsigned pBytes,sendSize,pSize,pDataSize,pFetchSize;
+    char buffer[sizeof(struct packet_data)], *dataBuffer;
+    struct packet_fetch * pf;
+    struct packet_data * pd;
+    struct packet * p, *response;
+
+    int index_,sock,err2;
     unsigned time_n;
-    struct packet p;
-    void * full_packet, *response;
+    long long err = 1;
 
     index_ = *((int*)index);
     sock = appif->connections[index_].sock_fd;
-    
-    displacement = (unsigned long) sizeof(struct packet);
+
     ASSERT_RETV(appif != NULL,NULL,"Applications interface not initialized.");
     pthread_cleanup_push(appif_close_conn,index);
 
+    pSize = sizeof(struct packet);
+    pFetchSize = sizeof(struct packet_fetch);
+    pDataSize = sizeof(struct packet_data);
+
+    p = (struct packet*) &buffer;
     while(1) {
         if(err < 1) break;
-        
-        memset(&p,0,sizeof(p));
-        
+
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-        if( (err = recvData(sock,&p,sizeof(p))) != sizeof(p)){
+        if( (err = recvData(sock,p,pSize)) != pSize){
             continue;
         }
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
-        full_packet = NULL;response = NULL;
-        switch(p.packetType){
+        pd = NULL; pf = NULL; response = NULL;
+        
+        switch(p->packetType){
             case PACKET_REQUEST_PASTE:
-                response = malloc(sizeof(struct packet) + p.dataSize);
-                ((struct packet*)response)->packetType = PACKET_RESPONSE_PASTE;
-                ((struct packet*)response)->recv_at = time_m_now();
-                ((struct packet*)response)->dataSize = mem_get(p.region,(void*)(response + displacement),p.dataSize);
-                SHOW_INFO("PASTE: %s",(char*) (((struct packet*)response)->data));
-                sendSize = sizeof(struct packet) + ((struct packet*)response)->dataSize;
+                err = recvData(sock,p + pSize,pFetchSize - pSize);
+                if(err != pFetchSize - pSize){
+                    break;
+                }
+
+                pf = (struct packet_fetch*) p;
+
+                dataBuffer = malloc(pDataSize + pf->dataSize);
+                pd = (struct packet_data*) dataBuffer;
+
+                pd->packetType = PACKET_RESPONSE_PASTE;
+                pd->region = pf->region;
+                pd->dataSize = mem_get(pf->region,(void*)(dataBuffer + pDataSize),pf->dataSize);
+                pd->recv_at = time_m_now();
+
+                SHOW_INFO("PASTE %u from region %d: %s",pd->dataSize,pd->region,(char*) (dataBuffer + pDataSize));
+                sendSize = pDataSize + pd->dataSize;
+                response = (struct packet*) pd;
                 break;
 
             case PACKET_REQUEST_WAIT:
-                response = malloc(sizeof(struct packet) + p.dataSize);
-                ((struct packet*)response)->packetType = PACKET_RESPONSE_NOTIFY;
-                ((struct packet*)response)->recv_at = time_m_now();
-                ((struct packet*)response)->dataSize = mem_wait(p.region,(void*)(response + displacement),p.dataSize);
-                sendSize = sizeof(struct packet) + ((struct packet*)response)->dataSize;
-                SHOW_INFO("NOTIFY: %s",(char*) (((struct packet*)response)->data));
+                err = recvData(sock,p + pSize,pFetchSize - pSize);
+                if(err != pFetchSize - pSize){
+                    break;
+                }
+                
+                pf = (struct packet_fetch*) p;
+
+                dataBuffer = malloc(pDataSize + pf->dataSize);
+                pd = (struct packet_data*) dataBuffer;
+
+                pd->packetType = PACKET_RESPONSE_NOTIFY;
+                pd->recv_at = time_m_now();
+                pd->region = pf->region;
+                pd->dataSize = mem_wait(pf->region,(void*)(dataBuffer + pDataSize),pf->dataSize);
+
+                SHOW_INFO("NOTIFY: %s",(char*) (pd->data));
+                sendSize = pDataSize + pd->dataSize;
+                response = (struct packet*) pd;
                 break;
 
             case PACKET_REQUEST_COPY:
-                full_packet = malloc(sizeof(struct packet) + p.dataSize);
-                if( (err = recvData(sock,full_packet + displacement,p.dataSize)) <1){
-                    free(full_packet);
-                    full_packet = NULL;
+                err = recvData(sock,p + pSize,pDataSize- pSize);
+                if(err != pDataSize - pSize){
                     break;
                 }
-                time_n = time_m_now();
-                pBytes = mem_put(p.region,(void*) (full_packet + displacement),p.dataSize,time_n);
 
-                response = malloc(sizeof(struct packet));
-                ((struct packet*)response)->packetType = PACKET_RESPONSE_ACK;
-                ((struct packet*)response)->recv_at = time_n;
-                ((struct packet*)response)->dataSize = pBytes;
-                sendSize = sizeof(struct packet);
+                pBytes = ((struct packet_data*) p)->dataSize;
+
+                dataBuffer = malloc(pDataSize + pBytes);
+                memcpy(dataBuffer,p,pDataSize);
+
+                if( (err = recvData(sock,(dataBuffer + pDataSize),pBytes)) != pBytes){
+                    SHOW_WARNING("Invalid data size received: %lli, expected %u",err,pBytes);
+                    free(pd);
+                    break;
+                }
+
+                pd = (struct packet_data*) dataBuffer;
+                
+                time_n = time_m_now();
+                printf("mem put %s\n",(char*)pd->data);
+                pBytes = mem_put(pd->region,(void*) (dataBuffer + pDataSize),pd->dataSize,time_n);
+
+                pf = malloc(sizeof(struct packet_fetch));
+                pf->packetType = PACKET_RESPONSE_ACK;
+                pf->region = pd->region;
+                pf->dataSize = pBytes;
+                
+                response = (struct packet*) pf;
+                sendSize = pFetchSize;
 
                 if(pBytes == 0){
-                    free(full_packet);
+                    free(pd);
                 }else{
-                    memcpy(full_packet,&p,sizeof(p));
-                    ((struct packet*)full_packet)->recv_at = time_n;
-                    dclif_add_broadcast(full_packet,sock);
+                    pd->recv_at = time_n;
+                    if( (err2 = clipif_add_broadcast(pd,sock)) != 0){
+                        SHOW_ERROR("Could not broadcast message from application %d: %d",sock,err2);
+                        free(pd);
+                    }
                 }
                 break;
 
@@ -115,11 +165,10 @@ void * appif_slave(void * index){
                 err = 0;
                 break;
             default: /*This should not happen, what's the deal with the application?*/
-                SHOW_WARNING("Invalid packet.");
+                SHOW_WARNING("Invalid packet %u.",p->packetType);
                 break;
         }
         if(response){
-            ((struct packet*)response)->region = p.region;
             SHOW_INFO("Sending response to application %d",index_);
             err = sendData(sock,response,sendSize);
             free(response);
@@ -128,8 +177,10 @@ void * appif_slave(void * index){
     if(err < 1){
         if(err == 0) SHOW_INFO("Connection closed with application %d.",index_);
         else SHOW_WARNING("Error reading from socket with application %d: %s.",index_,strerror(errno));
-
+        
+        pthread_mutex_lock(&appif->lock);
         SHOW_INFO("Connected applications: %d/%d",appif->n_connections,MAX_APPS);
+        pthread_mutex_unlock(&appif->lock);
     }
     pthread_cleanup_pop(0);
     appif_close_conn(index);
@@ -203,10 +254,9 @@ int appif_init(){
 
 void appif_finalize(){
     int i,err;
-
+    
     for(i = 0; i < MAX_APPS; i++){
         if(appif->connections[i].sock_fd > 0){
-            shutdown(appif->connections[i].sock_fd,SHUT_RDWR);
             if( (err = pthread_cancel(appif->connections[i].comm_thread)) != 0){
                 SHOW_ERROR("Problem found while finishing communication thread %d: %d",i,err);
             }

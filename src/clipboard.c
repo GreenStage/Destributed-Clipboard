@@ -13,7 +13,6 @@
 #include "common.h"
 #include "interfaces/if.h"
 
-
 #ifndef h_addr
 #define h_addr h_addr_list[0]
 #endif
@@ -125,7 +124,7 @@ int main(int argc, char *argv[]){
     }
 
     /*Ready Destributed Clipboard interface*/
-    if ( (err = dclif_init(sock) ) != 0){
+    if ( (err = clipif_init(sock) ) != 0){
         return err;
     }
     /*Ready Applications interface*/
@@ -135,7 +134,7 @@ int main(int argc, char *argv[]){
 
     temp = malloc(sizeof(int));
     *temp = clips_sock;
-    pthread_create(&clip_thread,NULL,dclif_listen,(void *)temp);
+    pthread_create(&clip_thread,NULL,clipif_listen,(void *)temp);
 
     temp = malloc(sizeof(int));
     *temp = apps_sock;
@@ -159,7 +158,9 @@ int main(int argc, char *argv[]){
     }
 
     appif_finalize();
-    dclif_finalize();
+
+    clipif_finalize();
+
     CLOSE(clips_sock);
     CLOSE(apps_sock);
     remove("CLIPBOARD_SOCKET");

@@ -92,7 +92,6 @@ unsigned mem_put(int region, void * data, unsigned size, unsigned update_cond){
             CLMEM_MSG("Removed %u bytes from region %d.",mem->zones[region].size,region);
             free(mem->zones[region].data);
         }
-
     }
 
     mem->zones[region].data = mem_cpy;

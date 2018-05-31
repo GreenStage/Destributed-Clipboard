@@ -37,7 +37,7 @@ int main(int argc,char * argv[]){
                     printf("COPY: %d\n",clipboard_copy(clip,region,command_data,strlen(command_data) + 1));
                 break;
             case 'p':
-                cc = scanf("%d",&region);
+                cc = scanf("%d%*[^\n]",&region);
                 if(cc < 1)
                     printf("Missing values in expression.\n");
                 else{
@@ -47,7 +47,7 @@ int main(int argc,char * argv[]){
 
                 break;
             case 'w':
-                cc = scanf("%d",&region);
+                cc = scanf("%d%*[^\n]",&region);
                 if(cc < 1)
                     printf("Missing values in expression.\n");
                 else{

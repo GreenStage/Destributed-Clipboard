@@ -4,6 +4,7 @@
 #define ERR_MEM_ALREADY_INIT 1
 #define ERR_LOCK_CREATE 2
 
+#ifdef DEBUG
 #define CLMEM_MSG(...)\
 do {  \
     pthread_mutex_lock(&print_lock);\
@@ -13,6 +14,9 @@ do {  \
     fflush(stderr);\
     pthread_mutex_unlock(&print_lock);\
 } while(0)
+#else
+#define CLMEM_MSG(t,r,...) do{} while(0)
+#endif
 
 int mem_init();
 unsigned mem_get(int region,void * buffer, unsigned size);

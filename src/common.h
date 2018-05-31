@@ -89,13 +89,9 @@ do{\
     }\
 }while(0)
 
-#define MALLOC_ENSURE(size)\
-
 typedef enum bool_{
     false,
     true
 } bool;
-
-
 
 #endif
