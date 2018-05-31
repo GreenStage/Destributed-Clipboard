@@ -188,11 +188,10 @@ void * appif_slave(void * index){
 }
 
 void *appif_listen(void * socket){
-    int sock;
-    int new_client_fd;
     struct sockaddr_un new_client;
     unsigned addr_size;
-
+    int sock;
+    
     ASSERT_RETV(socket != NULL,NULL,"No socket passed.");
     sock =  *((int*)socket);
     free(socket);
@@ -205,11 +204,11 @@ void *appif_listen(void * socket){
 
     SHOW_INFO("Started to listen to applications connection requests.");
     while(1){
+        int new_client_fd;
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         new_client_fd = accept(sock,(struct sockaddr *) &new_client,&addr_size);
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         
-
         pthread_mutex_lock(&appif->lock);
         if(new_client_fd < 0){
             SHOW_WARNING("Could not accept new connection: invalid socket.");

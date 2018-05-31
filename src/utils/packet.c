@@ -4,9 +4,9 @@
 
 long long sendData(int sock,void * buf, int size){
     int sendBytes = 0;
-    int ret;
     while(sendBytes < size){
-        if( (ret = send(sock,buf+sendBytes,size-sendBytes,0)) == -1){
+        int ret;
+        if( (ret = send(sock,(char*)buf+sendBytes,size-sendBytes,0)) == -1){
             return ret;
         }
         else sendBytes += ret;
@@ -16,8 +16,8 @@ long long sendData(int sock,void * buf, int size){
 
 long long recvData(int sock,void * buf, int size){
     int recvBytes = 0;
-    int ret;
     while(recvBytes < size){
+        int ret;
         if((ret = recv(sock,buf,size,MSG_WAITALL)) < 1){
             return ret;
         }

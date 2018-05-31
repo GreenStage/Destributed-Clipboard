@@ -28,19 +28,6 @@ do {  \
 #define SHOW_ERROR(t,r,...) do{} while(0)
 #endif
 
-#define recvData(sock,buf,size) recv(sock,buf,size,MSG_WAITALL)
-
-int sendData(int sock,void * buf, int size){
-    int sendBytes = 0;
-    int ret;
-    while(sendBytes < size){
-        if( (ret = send(sock,buf+sendBytes,size-sendBytes,0)) == -1){
-            return ret;
-        }
-        else sendBytes += ret;
-    }
-    return sendBytes;
-}
 
 typedef enum packet_type_{
     PACKET_NONE = 0x0,
@@ -76,8 +63,31 @@ struct packet_data{
 }__attribute__((__packed__));
 
 
+int sendData(int sock,void * buf, int size){
+    int sendBytes = 0;
+    while(sendBytes < size){
+        int ret;
+        if( (ret = send(sock,(char*)buf + sendBytes,size-sendBytes,0)) == -1){
+            return ret;
+        }
+        else sendBytes += ret;
+    }
+    return sendBytes;
+}
+
+int recvData(int sock,void * buf, int size){
+    long recvBytes = 0;
+    while(recvBytes < size){
+        long ret;
+        if((ret = recv(sock,buf,size,MSG_WAITALL)) < 1){
+            return ret;
+        }
+        else recvBytes += ret;
+    }
+    return (int) recvBytes;
+}
+
 int clipboard_connect(char * clipboard_dir){
-    
     int sock;
     struct sockaddr_un addr;
     
@@ -85,7 +95,7 @@ int clipboard_connect(char * clipboard_dir){
 
     if(sock == -1){
         SHOW_ERROR("Can not create socket: %s",strerror(errno));
-        return ERROR_CONNECT_CLIPBOARD;
+        return -1;
     }
 
     addr.sun_family = AF_UNIX;
@@ -93,7 +103,7 @@ int clipboard_connect(char * clipboard_dir){
 
     if(connect(sock,(struct sockaddr *) &addr,sizeof(struct sockaddr_un)) == -1){
         SHOW_ERROR("Can not connect to local clipboard: %s",strerror(errno));
-        return ERROR_CONNECT_CLIPBOARD;
+        return -1;
     }
 
     return sock;
@@ -102,7 +112,7 @@ int clipboard_connect(char * clipboard_dir){
 int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
     int retval;
     struct packet_data * p;
-    unsigned p_length = sizeof(struct packet_data) + count;
+    unsigned long p_length = sizeof(struct packet_data) + count;
 
     if(region < 0 || region > 9){
         SHOW_ERROR("Invalid region: %s",strerror(errno));  
@@ -124,7 +134,7 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
         return 0;
     }
 
-    if( ( retval = recvData(clipboard_id,(void*) p,sizeof(struct packet_fetch)) < 1) ){
+    if( ( retval = recvData(clipboard_id,(void*) p,sizeof(struct packet_fetch)) ) < 1){
         SHOW_ERROR("Can not copy data to local clipboard: %s",strerror(errno));  
         free(p);  
         return 0;
@@ -134,8 +144,6 @@ int clipboard_copy(int clipboard_id, int region, void *buf, size_t count){
     free(p);
     return p_length;
 }
-
-
 
 int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
     int retval;
@@ -159,28 +167,31 @@ int clipboard_paste(int clipboard_id, int region, void *buf, size_t count){
     if( ( retval = recvData(clipboard_id,&recv_p,sizeof(struct packet_data)) ) < 1){
         SHOW_ERROR("Can not receive data from local clipboard: %s",strerror(errno));    
         return 0;
-     }
+    }
 
     if(recv_p.packetType != PACKET_RESPONSE_PASTE){
         SHOW_ERROR("Invalid response type received from local clipboard: %d",recv_p.packetType);    
         return 0;        
     }
 
-    if( ( retval = recvData(clipboard_id,buf,recv_p.dataSize )) < 1 ){
+    if(recv_p.dataSize == 0){
+        return 0;
+    }
+    else if( ( retval = recvData(clipboard_id,buf,recv_p.dataSize )) < 1 ){
         SHOW_ERROR("Could not paste data from local clipboard: %s",strerror(errno));    
         return 0;
     }
 
     /*Something went wrong with the clipboard, this should not happen*/
-     if(recv_p.dataSize > count){
-         uint8_t * trash = (uint8_t *) malloc(recv_p.dataSize - count);
-         if(recvData(clipboard_id,trash,MIN(recv_p.dataSize,count) < 1) ){
+    if(recv_p.dataSize > count){
+        uint8_t * trash = (uint8_t *) malloc(recv_p.dataSize - count);
+        if(recvData(clipboard_id,trash,MIN(recv_p.dataSize,count) < 1) ){
             SHOW_ERROR("Error cleaning socket: %s",strerror(errno));
-         }
-         free(trash);
-     }
+        }
+        free(trash);
+    }
 
-     return retval;
+    return retval;
 }
 
 int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
@@ -205,9 +216,12 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
     if( ( retval = recvData(clipboard_id,&recv_p,sizeof(struct packet_data)) ) < 1){
         SHOW_ERROR("Can not receive data from local clipboard: %s",strerror(errno));    
         return 0;
-     }
+    }
 
-    if(recv_p.packetType != PACKET_RESPONSE_NOTIFY){
+    if(recv_p.dataSize == 0){
+        return 0;
+    }
+    else if(recv_p.packetType != PACKET_RESPONSE_NOTIFY){
         SHOW_ERROR("Invalid response type received from local clipboard: %d",recv_p.packetType);    
         return 0;        
     }
@@ -215,19 +229,19 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
     if( ( retval = recvData(clipboard_id,buf,MIN(recv_p.dataSize,count) )) < 1 ){
         SHOW_ERROR("Can not copy data to local clipboard: %s",strerror(errno));    
         return 0;
-     }
+    }
 
-    /*Something went wrong with the clipboard, this should not happen*/
-     if(recv_p.dataSize > count){
-         uint8_t * trash = (uint8_t *) malloc(recv_p.dataSize - count);
+/*Something went wrong with the clipboard, this should not happen*/
+    if(recv_p.dataSize > count){
+        uint8_t * trash = (uint8_t *) malloc(recv_p.dataSize - count);
 
-         if(recvData(clipboard_id,&trash,recv_p.dataSize - count) < 1){
-            SHOW_ERROR("Error cleaning socket: %s",strerror(errno));
-         }
-         free(trash);
-     }
+        if(recvData(clipboard_id,&trash,recv_p.dataSize - count) < 1){
+        SHOW_ERROR("Error cleaning socket: %s",strerror(errno));
+        }
+        free(trash);
+    }
 
-     return retval;
+    return retval;
 }
 
 void clipboard_close(int clipboard_id){

@@ -9,10 +9,6 @@
 #define ERR_LOCK_CREATE 2
 #define ERR_CONNECT 3
 
-void time_m_sync(unsigned now);
-unsigned time_m_now();
-unsigned time_m_local();
-
 int clipif_init(int socket);
 void *clipif_listen(void * socket);
 int clipif_add_broadcast(void *data,int from);

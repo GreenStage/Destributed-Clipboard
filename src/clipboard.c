@@ -25,10 +25,8 @@ int main(int argc, char *argv[]){
     struct sockaddr_in peer_addr, my_addr;
     struct sockaddr_un app_my_addr;
 
-    struct hostent * hostinfo;
-
     pthread_t clip_thread, app_thread;
-    int sock = 0, port = 0;
+    int sock = 0;
     char usage[200];
 
     ASSERT_RETV(pthread_mutex_init(&print_lock,NULL) == 0,ERR_MUTEX_CREATE,"Could not create lock for stdout mutual exclusion.");
@@ -87,6 +85,8 @@ int main(int argc, char *argv[]){
         }
     }
     if(i < argc - 2){
+        struct hostent * hostinfo;
+        int port;
         
         if(argc < 5){
             SHOW_ERROR("Can not run in connected mode: No peer IP address specified.");

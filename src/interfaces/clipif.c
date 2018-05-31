@@ -106,8 +106,6 @@ void clipif_close_conn(void * i){
 void * clipif_slave(void * index){
     unsigned pBytes,pSize,pDataSize,pSyncSize;
     char buffer[sizeof(struct packet_data)], *dataBuffer;
-    struct packet_data * pd;
-    struct packet_sync * ps;
     struct packet * p;
 
     long long err = 1;
@@ -127,11 +125,11 @@ void * clipif_slave(void * index){
 
     while(1) {
         if(err < 1) break;
-
-        pd = NULL; ps = NULL;
+        struct packet_data * pd = NULL;
+        struct packet_sync * ps = NULL;
 
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-        if( (err = recvData(sock,p,pSize) != pSize) ){
+        if( (err = recvData(sock,p,pSize)) != pSize ){
             continue;
         }
 
@@ -188,7 +186,7 @@ void * clipif_slave(void * index){
                 }
                 else{
                     pd->packetType = PACKET_REQUEST_COPY;
-                    if( (err2 = clipif_add_broadcast(pd,sock) != 0)){
+                    if( (err2 = clipif_add_broadcast(pd,sock)) != 0){
                         SHOW_ERROR("Could not broadcast message from clipboard %d: %d",sock,err2);
                         free(pd);
                     }
@@ -256,9 +254,9 @@ void * clipif_broadcast(){
 }
 
 void *clipif_listen(void * socket){
-    int sock,err;
+    int sock;
     struct packet_sync p_hello;
-    int new_client_fd;
+    long long err;
     struct sockaddr_in new_client;
     unsigned addr_size;
 
@@ -276,6 +274,7 @@ void *clipif_listen(void * socket){
 
     SHOW_INFO("Started to listen to clipboards connection requests.");
     while(1){
+        int new_client_fd;
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         new_client_fd = accept(sock, (struct sockaddr *) &new_client,&addr_size);
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -294,7 +293,7 @@ void *clipif_listen(void * socket){
         else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
             shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
-            SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
+            SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %lli.",err);
         }
         else{
             int *i = malloc(sizeof(int));
@@ -324,7 +323,7 @@ void *clipif_listen(void * socket){
 
 int clipif_init(int socket){
     struct packet_sync hello_p;
-    int err;
+    long long err;
     int i;
 
     /*Init memmory*/
@@ -332,7 +331,7 @@ int clipif_init(int socket){
 
     /*Init time syncronization*/
     if( (err = time_init() ) != 0){
-        SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %d",err);
+        SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %lli",err);
         mem_finish();
     }
 
@@ -362,7 +361,7 @@ int clipif_init(int socket){
         err = recvData(socket,&hello_p,sizeof(hello_p));
 
         if(err < (int)sizeof(hello_p)){
-            SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %d",err);
+            SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %lli",err);
             CLOSE(socket);
             mem_finish();
             time_finish();

@@ -22,7 +22,7 @@ int main(int argc,char * argv[]){
     char command_data[1000];
     int clip,region;
     int exit_ = 0;
-
+    int bytes = 0;
     if(argc < 2) exit(1);
 
     if( (clip = clipboard_connect(argv[1]) )<1){
@@ -34,15 +34,20 @@ int main(int argc,char * argv[]){
 
         switch(command){
             case 'c':
-                printf("COPY: %d\n",clipboard_copy(clip,region,command_data,strlen(command_data) + 1));
+                bytes = clipboard_copy(clip,region,command_data,strlen(command_data) + 1);
+                printf("COPY: %d\n",bytes);
                 break;
             case 'p':
-                printf("PASTE: %d\n",clipboard_paste(clip,region,command_data,10000));
-                printf("DATA: %s",command_data);
+                bytes = clipboard_paste(clip,region,command_data,10000);
+                printf("PASTE: %d\n",bytes);
+                if(bytes)
+                    printf("DATA: %s",command_data);
                 break;
             case 'w':
+                bytes = clipboard_wait(clip,region,command_data,10000);
                 printf("WAIT: %d\n",clipboard_wait(clip,region,command_data,10000));
-                printf("DATA: %s",command_data);
+                if(bytes)
+                    printf("DATA: %s",command_data);
                 break;     
             case 'q':
                 exit_ = 1;   

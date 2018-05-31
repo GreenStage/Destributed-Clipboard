@@ -8,7 +8,7 @@
 struct clipboard_memory{
     struct zones{
         void * data;
-        unsigned size, from;
+        unsigned size;
         rw_lock lock;
         unsigned update_cond;
     } zones[N_REGIONS];
@@ -51,9 +51,12 @@ unsigned mem_wait(int region,void * buffer, unsigned size){
     }
     
     cp_size = MIN(size,mem->zones[region].size);
-    memcpy(buffer,mem->zones[region].data,cp_size);
 
+    if(cp_size){
+        memcpy(buffer,mem->zones[region].data,cp_size);
+    }
     rw_lock_runlock(mem->zones[region].lock);
+
     return cp_size;
 }
 
@@ -65,8 +68,11 @@ unsigned mem_get(int region,void * buffer, unsigned size){
     rw_lock_rlock(mem->zones[region].lock);
 
     cp_size = MIN(size,mem->zones[region].size);
-    memcpy(buffer,mem->zones[region].data,cp_size);
 
+    if(cp_size){
+        memcpy(buffer,mem->zones[region].data,cp_size);
+    }
+    
     rw_lock_runlock(mem->zones[region].lock);
     return cp_size;
 }
