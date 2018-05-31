@@ -133,7 +133,7 @@ void * clipif_slave(void * index){
      *clipif->connections[index_] elements only change after exiting this thread*/
     sock = clipif->connections[index_].sock_fd;
 
-    if(sock = clipif->parentSock){
+    if(sock == clipif->parentSock){
         withParent = 1;
     }
     else withParent = 0;
@@ -470,7 +470,7 @@ void clipif_finalize(){
     
     /*Access to clipif->hasparent must be atomic*/
     pthread_mutex_lock(&clipif->lock);
-    if(!clipif->hasparent){
+    if(clipif->parentSock == -1){
         /*Running as root, need to finish clock sync thread*/
         if( (err = pthread_cancel(clipif->clock_thread)) != 0){
             SHOW_ERROR("Problem found while finishing clock thread: %d",err);

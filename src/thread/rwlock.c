@@ -58,7 +58,6 @@ int rw_lock_rlock(rw_lock lock){
     if(lock->n_readers == 1){
         sem_wait(&lock->sem);
     }
-    pthread_cond_broadcast(&lock->update);
     pthread_mutex_unlock(&lock->m_lock);
     return 0;
 }
@@ -89,6 +88,7 @@ int rw_lock_wunlock(rw_lock lock){
         return ERR_LOCK_NULL;
     }
     sem_post(&lock->sem);
+    pthread_cond_broadcast(&lock->update);
     return 0;
 }
 

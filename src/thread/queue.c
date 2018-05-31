@@ -47,7 +47,7 @@ queue * queue_create(){
 }
 
 void queue_destroy(queue *q){
-    free(retval);
+    free(q);
 }
 
 int queue_push(queue * q, void * data){
