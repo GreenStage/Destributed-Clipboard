@@ -1,3 +1,9 @@
+
+/*---------------------------------------------
+    clmem.c
+    -Implementation of a thread-safe queue
+----------------------------------------------*/
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -19,23 +25,26 @@ struct queue_{
 };
 
 void queue_terminate(queue *q){
+    pthread_mutex_lock(&q->lock);
     q->terminate = 1;
+    pthread_mutex_unlock(&q->lock);
     pthread_cond_signal(&q->trigger);
 }
 
 queue * queue_create(){
-    queue * retval = malloc(sizeof(queue));
 
+    queue * retval = malloc(sizeof(queue));
     ASSERT_RETV(retval != NULL,NULL,"Could not allocate memmory for queue.");
 
     memset(retval,0,sizeof(queue));
 
+    /*Init required mutexes and conditions*/
     if(pthread_mutex_init(&retval->lock,NULL) != 0){
         SHOW_ERROR("Could not create lock for queue mutual exclusion.");
         free(retval);
         return NULL;
     }
-
+    
     if(pthread_cond_init(&retval->trigger,NULL) != 0){
         SHOW_ERROR("Could not create condition trigger for queue mutual exclusion.");
         pthread_mutex_destroy(&retval->lock);
@@ -47,6 +56,8 @@ queue * queue_create(){
 }
 
 void queue_destroy(queue *q){
+	pthread_mutex_destroy(&q->lock);
+    pthread_cond_destroy(&q->trigger);
     free(q);
 }
 
@@ -61,10 +72,11 @@ int queue_push(queue * q, void * data){
 
     pthread_mutex_lock(&q->lock);
 
+    /*If a terminate signal is on, no new data shall be placed in queue*/
     if(q == NULL || q->terminate){
         SHOW_WARNING("Can not push data to queue: finished.");
         free(new);
-        return 2;
+        return -1;
     }
     
     if(q->last){
@@ -78,6 +90,7 @@ int queue_push(queue * q, void * data){
     q->n_elements++;
     pthread_mutex_unlock(&q->lock);
 
+    /*Something new on the queue, send a signal*/
     pthread_cond_signal(&q->trigger);
     return 0;
 }
@@ -90,21 +103,26 @@ void * queue_pop(queue * q){
 
     ASSERT_RETV(q != NULL,NULL,"Queue not initialized.");
 
+    /*If nothing is available on queue, block until 
+     *new data arrives*/
     while(q->n_elements == 0 && !q->terminate){
         pthread_cond_wait(&q->trigger,&q->lock);
     }
 
+    /*Terminate signal triggered while waiting*/
     if(q->n_elements == 0 && q->terminate){
         pthread_mutex_unlock(&q->lock);
         return NULL;
     }
 
+    /*pop from queue*/
     aux = q->first;
     q->first = q->first->next;
     if(aux == q->last){
         q->last = aux->next;
     }
     q->n_elements--;
+
     pthread_mutex_unlock(&q->lock);
 
     retval = aux->data;

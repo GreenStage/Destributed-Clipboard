@@ -7,7 +7,7 @@
 #include <pthread.h>
 
 #define SHOW_ERRORS
-#define DEBUG 
+
 #define ERROR_MESSAGE_SIZE 400
 #define N_REGIONS 10
 #define ERR_NO_IP 1
@@ -35,10 +35,10 @@ do {  \
 } while(0)
 
 #else
-#define SHOW_ERROR(t,r,...) do{} while(0)
+#define SHOW_ERROR(...) do{} while(0)
 #endif
 
-#ifdef DEBUG
+#ifdef VERBOSE
 
 #define SHOW_INFO(...)\
 do {  \
@@ -61,7 +61,8 @@ do {  \
 
 
 #else
-#define SHOW_INFO(t,r,...) do{} while(0)
+#define SHOW_INFO(...) do{} while(0)
+#define SHOW_WARNING(...) do{} while(0)
 #endif
 
 #define ASSERT_RETV(A,R,...)\
@@ -89,9 +90,5 @@ do{\
     }\
 }while(0)
 
-typedef enum bool_{
-    false,
-    true
-} bool;
 
 #endif

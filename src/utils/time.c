@@ -12,6 +12,7 @@ unsigned time_m_local(){
 
 void time_m_sync(unsigned now){
     unsigned real_now = time(NULL);
+
     rw_lock_wlock(time_lock);
     time_started = real_now - now;
     rw_lock_wunlock(time_lock);
@@ -26,9 +27,10 @@ unsigned time_m_now(){
 
 int time_init(){
     time_started = 0;
-    return rw_lock_init(time_lock);
+    return rw_lock_init(&time_lock);
 }
 
 int time_finish(){
+    time_started = 0;
     return rw_lock_destroy(time_lock);
 }

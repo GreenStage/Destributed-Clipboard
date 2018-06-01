@@ -2,13 +2,22 @@
 CFLAGS = -Wall -ansi -Wextra
 LIBS = -lpthread
 
-debug: CFLAGS += -g -O0
-debug: clean
-debug: clipboard
-
+all: clean
+all: CFLAGS += -DVERBOSE
 all: clipboard
 
+debug: CFLAGS += -g -O0 -DVERBOSE
+debug: clean
+debug: clipboard_debug
+
+silent: clean
+silent: clipboard
+
 clipboard: clipboard.o clipif.o appif.o clmem.o queue.o rwlock.o packet.o time.o
+	gcc -o clipboard clipboard.o appif.o clipif.o clmem.o queue.o rwlock.o packet.o time.o $(LIBS) &&\
+	rm -rf *.o
+	
+clipboard_debug: clipboard.o clipif.o appif.o clmem.o queue.o rwlock.o packet.o time.o
 	gcc -o clipboard clipboard.o appif.o clipif.o clmem.o queue.o rwlock.o packet.o time.o $(LIBS)
 
 clipboard.o: src/clipboard.c src/interfaces/if.h src/common.h

@@ -1,4 +1,8 @@
 
+/*---------------------------------------------
+    clipif.c
+    -Manages communication with clipboards.
+----------------------------------------------*/
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -27,18 +31,19 @@ typedef struct connection_{
         pthread_mutex_t lock;
 } connection_t;
 
+/*Clipboards Interface Structure*/
 typedef struct distributed_interface_{
-    int n_connections;
+	connection_t connections[MAX_CLIPBOARDS];
+    int n_connections, parentSock;
     unsigned parentDelay;
-    connection_t connections[MAX_CLIPBOARDS];
+    pthread_cond_t slaveFinished;
     pthread_mutex_t lock;
-    queue * broadcasts;
     pthread_t master_thread;
-    
-    int parentSock;
     pthread_t clock_thread;
+    queue * broadcasts;
 } distributed_interface;
 
+/*Broadcast Structure*/
 typedef struct broadcast_t_{
     struct packet * p;
     int from;
@@ -66,57 +71,83 @@ void *clipif_clock_man(){
 /*Clean up function called after exiting a slave thread*/
 void clipif_close_conn(void * i){
     int index = *((int*)i);
-    int socket;
+    int sock_;
     free(i);
 
+
+    /*Changing the interface structure must be atomic*/
+    pthread_mutex_lock(&clipif->lock);
+    
     /*Access to a specific connection structure should be atomic*/
     pthread_mutex_lock(&clipif->connections[index].lock);
-    socket = clipif->connections[index].sock_fd;
+    
+    /*Detach pthread to ensure all its resources are freed when finished*/
+	pthread_detach(clipif->connections[index].recv_thread);
+	
+	/*Open a slot in the connections array*/
+    sock_ = clipif->connections[index].sock_fd;
     clipif->connections[index].sock_fd = 0;
+    
     pthread_mutex_unlock(&clipif->connections[index].lock);
+    
+    CLOSE(sock_);
 
-    SHOW_INFO("Closing socket %d.",socket);
-    CLOSE(socket);
-
-    /*Make sure that access to clif->parentSock is atomic
-      this will only happen once on the programm lifetime*/
-    if(clipif->parentSock == socket){
+    if(clipif->parentSock == sock_){
         /*Connection with root clipboard was closed, clipboard should become
           root of his own tree*/
         clipif->parentSock = -1;
-        SHOW_INFO("Connection with root clipboard closed, becoming root...");
+        SHOW_INFO("Connection with parent clipboard closed, becoming root...");
         pthread_create(&clipif->clock_thread,NULL,clipif_clock_man,NULL);
     }
-
-    pthread_mutex_lock(&clipif->lock);
+	
     clipif->n_connections--;
-    pthread_mutex_unlock(&clipif->lock);
+	SHOW_INFO("Connected clipboards: %d/%d", clipif->n_connections,MAX_CLIPBOARDS);
 
+    pthread_mutex_unlock(&clipif->lock);
+    SHOW_INFO("Slave thread %d finished",index);
+    pthread_cond_signal(&clipif->slaveFinished);
 }
 
-/*-------------------------------
-        Public functions
- -------------------------------*/
+/*Broadcasts packets adquired from the atomic queue*/
+void * clipif_broadcast(){
+    broadcast_t * msg;
 
-int clipif_add_broadcast(void *data,int from){
-    int err;
-    broadcast_t *broadcast;
+    ASSERT_RETV(clipif != NULL,NULL,"Distributed clipboard interface not initialized.");
 
-    ASSERT_RETV(clipif != NULL,-1,"Distributed clipboards interface not initialized.");
-    ASSERT_RETV(clipif->broadcasts != NULL,-2,"Broadcast queue not initialized.");
-
-    broadcast = malloc(sizeof(broadcast_t));
-    ASSERT_RETV(broadcast != NULL,-3,"Could not allocate memory for broadcast message.");
-
-    broadcast->from = from;
-    broadcast->p = (struct packet*) data;
-
-    /*Ensure message was added to atomic queue*/
-    if((err = queue_push(clipif->broadcasts,(void*) broadcast)) != 0){
-        free(broadcast);
-        return err;
+    /*Block operation until a packet arrives, or the queue terminates (NULL)*/
+    while( ( msg = (broadcast_t*) queue_pop(clipif->broadcasts) ) != NULL) {
+        uint32_t size;
+        /*Calculate send size*/
+        switch(msg->p->packetType){
+            case PACKET_GOODBYE:
+                size = sizeof(struct packet);
+                break;
+            case PACKET_TIME_SYNC:
+                size = sizeof(struct packet_sync);
+                break;
+            case PACKET_REQUEST_COPY:
+                size = sizeof(struct packet_data) + ((struct packet_data*)msg->p)->dataSize;
+                break;
+            default:
+                size = 0;
+        }
+        if(size != 0){
+			int i;
+            /*Broadcast packet for all connected clipboards, except the one from where it is from*/
+            for(i=0; i < MAX_CLIPBOARDS;i++){
+                /*Ensure that the socket descriptor in index i does not change (new connection or closing one)*/
+                pthread_mutex_lock(&clipif->connections[i].lock);
+                if(clipif->connections[i].sock_fd > 0 && (clipif->connections[i].sock_fd != msg->from )) {
+                    sendData(clipif->connections[i].sock_fd,(void*) msg->p,size);
+                }
+                pthread_mutex_unlock(&clipif->connections[i].lock);
+            }
+            if(msg->from != -1)
+                free(msg->p);
+            free(msg);
+        }
     }
-    else return 0;
+    return NULL;
 }
 
 void * clipif_slave(void * index){
@@ -149,7 +180,7 @@ void * clipif_slave(void * index){
     pDataSize = sizeof(struct packet_data);
     pSyncSize = sizeof(struct packet_sync);
 
-    p = (struct packet*) &buffer;
+    p = (struct packet*) buffer;
 
     while(1) {
         if(err < 1) break;
@@ -161,14 +192,15 @@ void * clipif_slave(void * index){
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
 
         /*Read basic packet information*/
-        if( (err = recvData(sock,p,pSize)) != pSize ){
+        if( (err = recvData(sock,buffer,pSize)) != pSize ){
             continue;
         }
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
 
         switch(p->packetType){
-
+            
             case PACKET_TIME_SYNC:
+                /*Receive a syncronization packet*/
                 /*Only should listen to syncronization packets from parent*/
                 if(withParent){
                     dataBuffer = malloc(pSyncSize);
@@ -199,16 +231,25 @@ void * clipif_slave(void * index){
                 break;
 
             case PACKET_REQUEST_COPY:
-                err = recvData(sock,p + pSize,pDataSize - pSize);
+                /*Receive a copy packet*/
+
+                /*Read copy packet info*/
+                err = recvData(sock,buffer + pSize,pDataSize - pSize);
                 if(err != pDataSize - pSize){
                     break;
                 }
-
-                pBytes = ((struct packet_data*) p)->dataSize;
+                pBytes = ((struct packet_data*)buffer)->dataSize;
 
                 dataBuffer = malloc(pDataSize + pBytes);
-                memcpy(dataBuffer,p,pDataSize);
+                if(dataBuffer == NULL){
+                    SHOW_ERROR("Could not allocate memory for copy packet size %u",pDataSize + pBytes);
+                    break;
+                }
 
+                memcpy(dataBuffer,buffer,pDataSize);
+                pd = (struct packet_data*) dataBuffer;
+
+                /*Read copied data*/
                 err = recvData(sock,dataBuffer + pDataSize,pBytes);
                 if(err != pBytes){
                      SHOW_WARNING("Invalid packet %lli.",err);
@@ -216,13 +257,15 @@ void * clipif_slave(void * index){
                      break;
                 }
 
-                pd = (struct packet_data*) dataBuffer;
+                /*Attempt to place it in memory*/
                 pBytes = mem_put(pd->region,(void*) (dataBuffer + pDataSize),pBytes,pd->recv_at);
+
                 if(pBytes == 0){
+                    /*Failed, dispose broadcast packet*/
                     free(pd);
                 }
                 else{
-                    pd->packetType = PACKET_REQUEST_COPY;
+                    /*Success, forward packet to children*/
                     if( (err2 = clipif_add_broadcast(pd,sock)) != 0){
                         SHOW_ERROR("Could not broadcast message from clipboard %d: %d",sock,err2);
                         free(pd);
@@ -231,69 +274,57 @@ void * clipif_slave(void * index){
                 break;
 
             case PACKET_GOODBYE:
+                /*Clipboard disconnected*/
                 err = 0;
                 break;
 
-            default:
+            default: /*This should not happen*/
                 SHOW_WARNING("Invalid packet %d.",p->packetType);
                 err = 0;
-                break;
         }
     }
-    if(err < 1){
+
+    if(err < 1){ /*Connection closed (0) or error (-1)*/
         if(err == 0) SHOW_INFO("Connection closed with clipboard %d.",index_);
         else SHOW_WARNING("Error reading from socket with clipboard %d: %s.",index_,strerror(errno));
-
-        SHOW_INFO("Connected clipboards: %d/%d", clipif->n_connections,MAX_CLIPBOARDS);
     }
+
+    /*Clean up*/
     pthread_cleanup_pop(0);
     clipif_close_conn(index);
     return NULL;
 }
 
-void * clipif_broadcast(){
-    broadcast_t * msg;
+/*-------------------------------
+        Public functions
+ -------------------------------*/
 
-    ASSERT_RETV(clipif != NULL,NULL,"Distributed clipboard interface not initialized.");
+int clipif_add_broadcast(void *data,int from){
+    int err;
+    broadcast_t *broadcast;
 
-    while( ( msg = (broadcast_t*) queue_pop(clipif->broadcasts) ) != NULL) {
-        uint32_t size;
-        switch(msg->p->packetType){
-            case PACKET_GOODBYE:
-                size = sizeof(struct packet);
-                break;
-            case PACKET_TIME_SYNC:
-                size = sizeof(struct packet_sync);
-                break;
-            case PACKET_REQUEST_COPY:
-                size = sizeof(struct packet_data) + ((struct packet_data*)msg->p)->dataSize;
-                break;
-            default:
-                size = 0;
-        }
-        if(size != 0){
-            for(int i = 0; i < MAX_CLIPBOARDS;i++){
-                pthread_mutex_lock(&clipif->connections[i].lock);
-                if(clipif->connections[i].sock_fd > 0 && (clipif->connections[i].sock_fd != msg->from )) {
-                    sendData(clipif->connections[i].sock_fd,(void*) msg->p,size);
-                }
-                pthread_mutex_unlock(&clipif->connections[i].lock);
-            }
-            if(msg->from != -1)
-                free(msg->p);
-            free(msg);
-        }
+    ASSERT_RETV(clipif != NULL,-1,"Distributed clipboards interface not initialized.");
+    ASSERT_RETV(clipif->broadcasts != NULL,-2,"Broadcast queue not initialized.");
+
+    broadcast = malloc(sizeof(broadcast_t));
+    ASSERT_RETV(broadcast != NULL,-3,"Could not allocate memory for broadcast message.");
+
+    broadcast->from = from;
+    broadcast->p = (struct packet*) data;
+
+    /*Ensure message was added to atomic queue*/
+    if((err = queue_push(clipif->broadcasts,(void*) broadcast)) != 0){
+        free(broadcast);
+        return err;
     }
-    return NULL;
+    else return 0;
 }
 
 void *clipif_listen(void * socket){
-    int sock;
     struct packet_sync p_hello;
-    long long err;
     struct sockaddr_in new_client;
     unsigned addr_size;
-
+    int sock;
     ASSERT_RETV(socket != NULL,NULL,"No socket passed.");
     sock =  *((int*)socket);
     free(socket);
@@ -307,15 +338,19 @@ void *clipif_listen(void * socket){
     ASSERT_RETV(listen(sock,MAX_CLIPBOARDS) == 0,NULL,"Can not listen on socket: %s.",strerror(errno));
 
     SHOW_INFO("Started to listen to clipboards connection requests.");
-    while(1){
-        int new_client_fd;
 
+    while(1){
+        int new_client_fd,err;
+
+        /*Only accept cancellation requests on the blocking accept call,
+          avoiding possible memory leaks*/
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
         new_client_fd = accept(sock, (struct sockaddr *) &new_client,&addr_size);
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
         
         p_hello.time = time_m_now();
 
+        /*New connection, need atomic access to the connections structure*/
         pthread_mutex_lock(&clipif->lock);
         if(new_client_fd < 0){
             SHOW_WARNING("Could not accept new connection: invalid socket.");
@@ -328,10 +363,11 @@ void *clipif_listen(void * socket){
         else if(( err = sendData(new_client_fd,&p_hello,sizeof(struct packet_sync)) ) <1){
             shutdown(new_client_fd,SHUT_RDWR);
             CLOSE(new_client_fd);
-            SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %lli.",err);
+            SHOW_WARNING("Could not accept new connection: error sending syncronization packet: %d.",err);
         }
         else{
             int *i = malloc(sizeof(int));
+            /*Find a free slot for this new connection*/
             for(*i = 0; *i < MAX_CLIPBOARDS; (*i)++){
                 if(0 == pthread_mutex_trylock(&clipif->connections[*i].lock)){
                     if(clipif->connections[*i].sock_fd <= 0){
@@ -341,19 +377,23 @@ void *clipif_listen(void * socket){
                 }
             }
             
+            /*This wont happen, the connection counter is less than the max number
+             of connections, but there is no free slot?*/
             if(*i == MAX_CLIPBOARDS){
-                SHOW_ERROR("Zombie connection detected, rejecting new connections.");
+                SHOW_ERROR("Zombie connection detected, rejecting new connection.");
                 CLOSE(new_client_fd);
                 free(i);
                 continue;
             }
-
+			
             clipif->n_connections++;
             clipif->connections[*i].sock_fd = new_client_fd;
             pthread_mutex_unlock(&clipif->connections[*i].lock);
 
             SHOW_INFO("A clipboard connected");
             SHOW_INFO("Connected clipboards: %d/%d", clipif->n_connections,MAX_CLIPBOARDS);
+
+            /*Starting to read from connected clipboard*/
             pthread_create(&clipif->connections[*i].recv_thread,NULL,clipif_slave,(void *) i);
         }
         pthread_mutex_unlock(&clipif->lock);
@@ -375,17 +415,27 @@ int clipif_init(int socket){
     }
 
     /*Init Clipboards interface structure*/
-    ASSERT_RETV(clipif == NULL,ERR_IF_EXISTS,"Distributed clipboard interface already initialized .");
+    ASSERT_RETV(clipif == NULL,-1,"Distributed clipboard interface already initialized .");
 
     clipif = malloc(sizeof(distributed_interface));
-    ASSERT_RETV(clipif != NULL,ERR_MEM_ALLOC,"Error allocating memory for distributed clipboard interface.");
+    ASSERT_RETV(clipif != NULL,-1,"Error allocating memory for distributed clipboard interface.");
     memset(clipif,0,sizeof(distributed_interface));
 
     /*Init atomic queue to forward packets created by slave threads to the broadcaster thread*/
     clipif->broadcasts = queue_create();
 
     pthread_mutex_init(&clipif->lock,NULL);
-
+    
+    /*Init conditional signal for finishing slaves*/
+    if(pthread_cond_init(&clipif->slaveFinished,NULL) != 0){
+        SHOW_ERROR("Could not create condition trigger for slaves termination.");
+		queue_destroy(clipif->broadcasts);
+		free(clipif);
+		time_finish();
+		mem_finish();
+        return -1;
+    }
+    
     /*Init one lock for each connection slot*/
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         if(pthread_mutex_init(&clipif->connections[i].lock,NULL) != 0){
@@ -394,7 +444,7 @@ int clipif_init(int socket){
             free(clipif);
             time_finish();
             mem_finish();
-            return ERR_LOCK_CREATE;
+            return -2;
         }
     }
 
@@ -418,7 +468,7 @@ int clipif_init(int socket){
             mem_finish();
             time_finish();
             free(clipif);
-            return ERR_CONNECT;
+            return -3;
         }
         
         t2= time_m_local();
@@ -450,6 +500,8 @@ int clipif_init(int socket){
 
     /*Create thread to broadcast messages*/
     pthread_create(&clipif->master_thread,NULL,clipif_broadcast,NULL);
+    
+
     return 0;
 }
 
@@ -468,7 +520,7 @@ void clipif_finalize(){
 
     queue_push(clipif->broadcasts,b);
     
-    /*Access to clipif->hasparent must be atomic*/
+    /*Access to clipif->parentSock must be atomic*/
     pthread_mutex_lock(&clipif->lock);
     if(clipif->parentSock == -1){
         /*Running as root, need to finish clock sync thread*/
@@ -480,6 +532,7 @@ void clipif_finalize(){
         }
         else SHOW_INFO("Clock thread finished.");
     }
+    else clipif->parentSock = -1;
     pthread_mutex_unlock(&clipif->lock);
 
     /*Stop broadcasting new messages*/
@@ -495,29 +548,44 @@ void clipif_finalize(){
         pthread_mutex_lock(&clipif->connections[i].lock);
 
         if(clipif->connections[i].sock_fd > 0){
-            shutdown(clipif->connections[i].sock_fd,SHUT_RDWR);
             pthread_mutex_unlock(&clipif->connections[i].lock);
-
+            /*Send cancellation request*/
             if( (err = pthread_cancel(clipif->connections[i].recv_thread)) != 0){
                 SHOW_ERROR("Problem found while finishing thread %d: %d",i,err);
             }
-            else if( (err = pthread_join(clipif->connections[i].recv_thread,NULL)) != 0){
-                SHOW_ERROR("Error finishing thread \"clip_thread\": %d",err);
-            }
-            else SHOW_INFO("Slave thread %d finished",i);
         }
-        else pthread_mutex_unlock(&clipif->connections[i].lock);
+        else{
+			pthread_mutex_unlock(&clipif->connections[i].lock);
+		} 
     }
-
     
+    /*Wait for all slaves to finish, note that pthread_join can not be use here
+     * as all slaves threads need to be detached in order to avoid memory leaks
+     * when finishing in run-time*/
+    pthread_mutex_lock(&clipif->lock);
+    while(clipif->n_connections > 0){
+        pthread_cond_wait(&clipif->slaveFinished,&clipif->lock);
+    }
+    pthread_mutex_unlock(&clipif->lock);
+    
+    if( (err = pthread_cond_destroy(&clipif->slaveFinished)) ){
+		SHOW_ERROR("Error finishing condtion for slaves termination: %d",err);
+	}
     for(i = 0; i < MAX_CLIPBOARDS; i++){
         pthread_mutex_destroy(&clipif->connections[i].lock);
     }
-    
-    pthread_mutex_destroy(&clipif->lock);
+
+    if( (err = pthread_mutex_destroy(&clipif->lock)) != 0){
+		SHOW_ERROR("Error destroying struct mutex %d",err);
+	}
     
     queue_destroy(clipif->broadcasts);
-    time_finish();
-    mem_finish();
+    if( (err = time_finish()) != 0){
+		SHOW_ERROR("Error finishing timer %d",err);
+	}
+	if( (err = mem_finish()) != 0){
+		SHOW_ERROR("Error finishing memory %d",err);
+	}
+
     free(clipif);
 }

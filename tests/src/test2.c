@@ -1,6 +1,10 @@
+/*----------------------------------------*
+ * User interactive test                  *
+ *----------------------------------------*/
+
 #include <stdlib.h>
 #include <stdio.h>
-#include "../Library/clipboard.h"
+#include "../../Library/clipboard.h"
 #include <string.h>
 #include <unistd.h>
 
@@ -9,6 +13,7 @@ int main(int argc,char * argv[]){
     char command_data[1000];
     int clip,region;
     int exit_ = 0;
+    int bb;
     if(argc < 2) exit(1);
 
     if( (clip = clipboard_connect(argv[1]) )<1){
@@ -33,15 +38,18 @@ int main(int argc,char * argv[]){
                 if(cc < 2)
                     printf("Missing values in expression.\n");
                 else 
-                    printf("COPY: %d\n",clipboard_copy(clip,region,command_data,strlen(command_data) + 1));
+					bb = clipboard_copy(clip,region,command_data,strlen(command_data) + 1);
+                    printf("COPY: %d\n",bb);
                 break;
             case 'p':
                 cc = scanf("%d%*1000[^\n]",&region);
                 if(cc < 1)
                     printf("Missing values in expression.\n");
                 else{
-                    printf("PASTE: %d\n",clipboard_paste(clip,region,command_data,1000));
-                    printf("DATA: %s\n",command_data);
+					bb = clipboard_paste(clip,region,command_data,1000);
+                    printf("PASTE: %d\n",bb);
+                    if(bb)
+						printf("DATA: %s\n",command_data);
                 }
 
                 break;
@@ -50,8 +58,10 @@ int main(int argc,char * argv[]){
                 if(cc < 1)
                     printf("Missing values in expression.\n");
                 else{
+					bb = clipboard_wait(clip,region,command_data,1000);
                     printf("WAIT: %d\n",clipboard_wait(clip,region,command_data,1000));
-                    printf("DATA: %s\n",command_data);
+                    if(bb)
+						printf("DATA: %s\n",command_data);
                 }
                 break;     
             case 'q':
@@ -60,4 +70,5 @@ int main(int argc,char * argv[]){
                 break;    
         }
     }
+    return 0;
 }
