@@ -116,6 +116,7 @@ void * clipif_broadcast(){
 
     /*Block operation until a packet arrives, or the queue terminates (NULL)*/
     while( ( msg = (broadcast_t*) queue_pop(clipif->broadcasts) ) != NULL) {
+
         uint32_t size;
         /*Calculate send size*/
         switch(msg->p->packetType){
@@ -258,6 +259,7 @@ void * clipif_slave(void * index){
                 }
 
                 /*Attempt to place it in memory*/
+                SHOW_WARNING("TRY PLACE %u",pd->recv_at);
                 pBytes = mem_put(pd->region,(void*) (dataBuffer + pDataSize),pBytes,pd->recv_at);
 
                 if(pBytes == 0){
@@ -405,13 +407,9 @@ int clipif_init(int socket){
     long long err;
     int i;
 
-    /*Init memmory*/
-    mem_init();
-
     /*Init time syncronization structure*/
     if( (err = time_init() ) != 0){
         SHOW_ERROR("Could not connect to clipboard: error receiving syncronization packet: %lli",err);
-        mem_finish();
     }
 
     /*Init Clipboards interface structure*/
@@ -432,7 +430,6 @@ int clipif_init(int socket){
 		queue_destroy(clipif->broadcasts);
 		free(clipif);
 		time_finish();
-		mem_finish();
         return -1;
     }
     
@@ -443,7 +440,6 @@ int clipif_init(int socket){
             queue_destroy(clipif->broadcasts);
             free(clipif);
             time_finish();
-            mem_finish();
             return -2;
         }
     }
@@ -465,7 +461,7 @@ int clipif_init(int socket){
                 pthread_mutex_destroy(&clipif->connections[i].lock);
             }
             CLOSE(socket);
-            mem_finish();
+
             time_finish();
             free(clipif);
             return -3;
@@ -578,14 +574,10 @@ void clipif_finalize(){
     if( (err = pthread_mutex_destroy(&clipif->lock)) != 0){
 		SHOW_ERROR("Error destroying struct mutex %d",err);
 	}
-    
+
     queue_destroy(clipif->broadcasts);
     if( (err = time_finish()) != 0){
 		SHOW_ERROR("Error finishing timer %d",err);
 	}
-	if( (err = mem_finish()) != 0){
-		SHOW_ERROR("Error finishing memory %d",err);
-	}
-
     free(clipif);
 }

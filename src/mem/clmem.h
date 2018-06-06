@@ -31,6 +31,7 @@ unsigned mem_wait(int region,void * buffer, unsigned size);
 unsigned mem_put(int region, void * data, unsigned size, unsigned update_cond);
 
 /*Destroys the clipboard memory*/
-int mem_finish();
+void mem_finish();
 
+void mem_destroy();
 #endif

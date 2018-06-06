@@ -13,7 +13,7 @@ else
     for file in src/*.c
     do
         output=$(echo "$file" | sed 's/\.c//g' | sed 's/src\///g')
-        echo "gcc $file ../Library/client_api.c -o $output"
-        gcc $file ../Library/client_api.c -o $output
+        echo "gcc $file ../Library/client_api.c -o $output -g"
+        gcc $file ../Library/client_api.c -o $output -g
     done
 fi

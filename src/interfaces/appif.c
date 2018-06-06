@@ -49,7 +49,7 @@ void appif_close_conn(void * i){
     int index = *((int*)i);
     int sock_;
     free(i);
-
+    
     /*Access to the interface structure shall be atomic*/
     pthread_mutex_lock(&appif->lock);
     
@@ -98,7 +98,7 @@ void * appif_slave(void * index){
         /*Only allow cancellation to occur when waiting for messages,
           thus avoiding memory leaks*/
         pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, NULL);
-        if( (err = recvData(sock,p,pSize)) != pSize){
+        if( (err = recvData(sock,buffer,pSize)) != pSize){
             continue;
         }
         pthread_setcancelstate(PTHREAD_CANCEL_DISABLE, NULL);
@@ -165,14 +165,19 @@ void * appif_slave(void * index){
                 /*Wait for a data update from memory (blocking operation)*/
                 pd->dataSize = mem_wait(pf->region,(void*)(dataBuffer + pDataSize),pf->dataSize);
 
+                if(pd->dataSize == 0){
+                    err = 0;
+                }
+
                 SHOW_INFO("NOTIFY: %u",pd->dataSize);
                 sendSize = pDataSize + pd->dataSize;
+
                 response = (struct packet*) pd;
                 break;
 
             case PACKET_REQUEST_COPY:
                 /*Received a copy request*/
-
+                SHOW_WARNING("OIOIOI");
                 /*Read data packet info*/
                 err = recvData(sock,buffer + pSize,pDataSize- pSize);
                 if(err != pDataSize - pSize){
@@ -238,7 +243,7 @@ void * appif_slave(void * index){
         }
         if(response){
             SHOW_INFO("Sending response to application %d",index_);
-            err = sendData(sock,response,sendSize);
+            err = MIN(sendData(sock,response,sendSize),err);
             free(response);
         }
     }
@@ -357,7 +362,7 @@ void appif_finalize(){
             }
         }
     }
-    
+
     /*Wait for all slaves to finish, note that pthread_join can not be use here
      * as all slaves threads need to be detached in order to avoid memory leaks
      * when finishing in run-time*/
@@ -366,7 +371,7 @@ void appif_finalize(){
         pthread_cond_wait(&appif->slaveFinished,&appif->lock);
     }
     pthread_mutex_unlock(&appif->lock);
-    
+
     if( (err = pthread_cond_destroy(&appif->slaveFinished)) ){
 		SHOW_ERROR("Error finishing condtion for slaves termination: %d",err);
 	}

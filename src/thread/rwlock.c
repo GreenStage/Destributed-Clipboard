@@ -56,10 +56,10 @@ int rw_lock_destroy(rw_lock lock){
     }
 #endif
     else if( (ret = pthread_mutex_destroy(&lock->m_lock)) != 0){
-        return -2;
+        return -3;
     }
     else if( (ret = pthread_cond_destroy(&lock->update)) != 0){
-        return -3;
+        return -4;
     }
     free(lock);
     return 0;
@@ -118,5 +118,11 @@ int rw_lock_wait_update(rw_lock lock){
     if(lock == NULL){
         return -1;
     }
-    return pthread_cond_wait(&lock->update,&lock->m_lock);
+    pthread_cond_wait(&lock->update,&lock->m_lock);
+    lock->n_readers++;
+    if(lock->n_readers == 1){
+        /*If is the first reader, wait for the semaphore*/
+        sem_wait(&lock->sem);
+    }
+    return pthread_mutex_unlock(&lock->m_lock);
 }

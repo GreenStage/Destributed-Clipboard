@@ -59,7 +59,7 @@ int main(int argc,char * argv[]){
                     printf("Missing values in expression.\n");
                 else{
 					bb = clipboard_wait(clip,region,command_data,1000);
-                    printf("WAIT: %d\n",clipboard_wait(clip,region,command_data,1000));
+                    printf("WAIT: %d\n",bb);
                     if(bb)
 						printf("DATA: %s\n",command_data);
                 }

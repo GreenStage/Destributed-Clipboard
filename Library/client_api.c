@@ -48,18 +48,20 @@ struct packet{
     uint8_t packetType;
 }__attribute__((__packed__));
 
-struct packet_fetch{
-    uint8_t packetType;
-    uint8_t region;
-    uint32_t dataSize;
-}__attribute__((__packed__));
-
+/*Packet that transports data*/
 struct packet_data{
     uint8_t packetType;
     uint8_t region;
     uint32_t dataSize;
     uint32_t recv_at;
     uint8_t data[0];
+}__attribute__((__packed__));
+
+/*Packet that informs or requests data*/
+struct packet_fetch{
+    uint8_t packetType;
+    uint8_t region;
+    uint32_t dataSize;
 }__attribute__((__packed__));
 
 
@@ -226,7 +228,7 @@ int clipboard_wait(int clipboard_id, int region, void *buf, size_t count){
         return 0;        
     }
 
-    if( ( retval = recvData(clipboard_id,buf,MIN(recv_p.dataSize,count) )) < 1 ){
+    if( ( retval = recvData(clipboard_id,buf,recv_p.dataSize)) < 1 ){
         SHOW_ERROR("Can not copy data to local clipboard: %s",strerror(errno));    
         return 0;
     }

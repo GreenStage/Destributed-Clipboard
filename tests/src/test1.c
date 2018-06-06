@@ -7,13 +7,13 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h> 
-#define DEBUG
+
 #include "../../Library/clipboard.h"
 
-#define NTESTS 100
+#define NTESTS 10
 
 /*Defaults to 100MB*/
-#define STR_LEN 100000000
+#define STR_LEN 33
 
 /*Random string generator, implemented as in:
     https://stackoverflow.com/questions/15767691/

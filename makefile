@@ -14,7 +14,7 @@ silent: clean
 silent: clipboard
 
 clipboard: clipboard.o clipif.o appif.o clmem.o queue.o rwlock.o packet.o time.o
-	gcc -o clipboard clipboard.o appif.o clipif.o clmem.o queue.o rwlock.o packet.o time.o $(LIBS) &&\
+	gcc -o clipboard clipboard.o appif.o clipif.o clmem.o queue.o rwlock.o packet.o time.o -g $(LIBS) &&\
 	rm -rf *.o
 	
 clipboard_debug: clipboard.o clipif.o appif.o clmem.o queue.o rwlock.o packet.o time.o

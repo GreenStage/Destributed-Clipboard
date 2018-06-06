@@ -12,6 +12,7 @@
 
 #include "common.h"
 #include "interfaces/if.h"
+#include "mem/clmem.h"
 
 #ifndef h_addr
 #define h_addr h_addr_list[0]
@@ -145,6 +146,8 @@ int main(int argc, char *argv[]){
             return ERR_CANT_CONNECT;
         }
     }
+    /*Init memmory*/
+    mem_init();
 
     /*Ready Destributed Clipboard interface*/
     if ( (err = clipif_init(sock) ) != 0){
@@ -192,6 +195,8 @@ int main(int argc, char *argv[]){
         SHOW_ERROR("Error finishing thread \"clip_thread\": %d",err);
     }
 
+    mem_finish();
+    
     /*Finalize applications interface*/
     appif_finalize();
 
@@ -201,6 +206,9 @@ int main(int argc, char *argv[]){
     CLOSE(clips_sock);
     CLOSE(apps_sock);
     remove("CLIPBOARD_SOCKET");
+    
     pthread_mutex_destroy(&print_lock);
+
+    mem_destroy();
     return 0;
 }
